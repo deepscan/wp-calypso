@@ -33,6 +33,7 @@ export const createSiteDomainObject = domain => {
 		pointsToWpcom: Boolean( domain.points_to_wpcom ),
 		registrar: String( domain.registrar ),
 		registrationDate: String( domain.registration_date ),
+		subscriptionId: domain.subscription_id,
 		type: getDomainType( domain )
 	};
 };

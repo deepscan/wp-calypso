@@ -220,6 +220,9 @@ const RegisteredDomain = React.createClass( {
 						{ this.getPrivacyProtection() }
 
 						<SubscriptionSettings
+							type={ domain.type }
+							subscriptionId={ domain.subscriptionId }
+							siteSlug={ this.props.selectedSite.slug }
 							onClick={ this.handlePaymentSettingsClick } />
 					</Card>
 
