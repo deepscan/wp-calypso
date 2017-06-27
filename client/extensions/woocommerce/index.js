@@ -55,16 +55,12 @@ const getStorePages = () => {
 			container: ProductCreate,
 			configKey: 'woocommerce/extension-products',
 			path: '/store/product/:site',
+			parentPath: '/store/products/:site',
 			sidebarItemButton: {
 				label: translate( 'Add' ),
 				parentSlug: 'products',
 				slug: 'product-add',
 			},
-		},
-		{
-			container: Dashboard, // TODO use Dashboard as a placeholder until this page becomes available
-			configKey: 'woocommerce/extension-products-import',
-			path: '/store/products/import/:site',
 		},
 		{
 			container: Orders,
@@ -81,11 +77,13 @@ const getStorePages = () => {
 			container: Order,
 			configKey: 'woocommerce/extension-orders',
 			path: '/store/order/:site/:order',
+			parentPath: '/store/orders/:site',
 		},
 		{
 			container: Dashboard, // TODO use Dashboard as a placeholder until this page becomes available
 			configKey: 'woocommerce/extension-orders',
 			path: '/store/order/:site',
+			parentPath: '/store/orders/:site',
 			sidebarItemButton: {
 				label: translate( 'Add' ),
 				parentSlug: 'orders',
@@ -107,21 +105,25 @@ const getStorePages = () => {
 			container: SettingsPayments,
 			configKey: 'woocommerce/extension-settings-payments',
 			path: '/store/settings/payments/:site',
+			parentPath: '/store/settings/:site',
 		},
 		{
 			container: Shipping,
 			configKey: 'woocommerce/extension-settings-shipping',
 			path: '/store/settings/shipping/:site',
+			parentPath: '/store/settings/:site',
 		},
 		{
 			container: ShippingZone,
 			configKey: 'woocommerce/extension-settings-shipping',
 			path: '/store/settings/shipping/:site/zone/:zone',
+			parentPath: '/store/settings/:site',
 		},
 		{
 			container: Dashboard, // TODO use Dashboard as a placeholder until this page becomes available
 			configKey: 'woocommerce/extension-settings-tax',
 			path: '/store/settings/taxes/:site',
+			parentPath: '/store/settings/:site',
 		},
 	];
 };
@@ -148,10 +150,11 @@ function addStorePage( storePage, storeNavigation ) {
 	} );
 }
 
-function createStoreNavigation( context, next ) {
+function createStoreNavigation( context, next, storePage ) {
 	renderWithReduxStore(
 		React.createElement( StoreSidebar, {
 			path: context.path,
+			page: storePage,
 			sidebarItems: getStoreSidebarItems(),
 			sidebarItemButtons: getStoreSidebarItemButtons(),
 		} ),
@@ -166,7 +169,7 @@ export default function() {
 	// Add pages that use the store navigation
 	getStorePages().forEach( function( storePage ) {
 		if ( config.isEnabled( storePage.configKey ) ) {
-			addStorePage( storePage, createStoreNavigation );
+			addStorePage( storePage, ( context, next ) => createStoreNavigation( context, next, storePage ) );
 		}
 	} );
 

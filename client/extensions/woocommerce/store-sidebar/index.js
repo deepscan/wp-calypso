@@ -53,7 +53,7 @@ class StoreSidebar extends Component {
 	}
 
 	renderSidebarMenuItems = ( items, buttons, isDisabled ) => {
-		const { site } = this.props;
+		const { site, page } = this.props;
 
 		return items.map( function( item, index ) {
 			const isChild = ( 'undefined' !== typeof item.parentSlug );
@@ -94,13 +94,14 @@ class StoreSidebar extends Component {
 				childLinks.push( getLink( child.path, site ) );
 			} );
 
+			const selected = this.isItemLinkSelected( itemLink ) || page.parentPath === item.path;
 			// Build the classnames for the item
 			const itemClasses = classNames( item.slug,
 				{
 					'has-selected-child': this.isItemLinkSelected( childLinks ),
 					'is-child-item': isChild,
 					'is-placeholder': isDisabled,
-					selected: this.isItemLinkSelected( itemLink ),
+					selected,
 				}
 			);
 
