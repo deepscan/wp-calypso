@@ -22,3 +22,17 @@
 .media-library__scale-range .range__content.is-max {
 	right: -28px;
 }
+
+.media-library__connect-message {
+	max-width: 480px;
+	padding: 36px;
+	margin: 0 auto;
+	text-align: center;
+}
+
+.media-library__source-picker {
+	padding: 8px;
+	margin-bottom: 16px;
+	box-shadow: 0 0 0 1px transparentize( lighten( $gray, 20% ), .5 ),
+		0 1px 2px lighten( $gray, 30% );
+}
