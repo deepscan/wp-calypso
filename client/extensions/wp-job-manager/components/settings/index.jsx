@@ -17,10 +17,12 @@ import Main from 'components/main';
 import Navigation from '../navigation';
 import QuerySettings from '../../data/query-settings';
 import { getSelectedSite, getSelectedSiteId } from 'state/ui/selectors';
+import { getSettings } from '../../state/settings/selectors';
 
 class Settings extends Component {
 	static propTypes = {
 		children: PropTypes.element,
+		initialValues: PropTypes.object,
 		site: PropTypes.object,
 		siteId: PropTypes.number,
 		tab: PropTypes.string,
@@ -67,6 +69,7 @@ class Settings extends Component {
 	render() {
 		const {
 			children,
+			initialValues,
 			site,
 			siteId,
 			tab,
@@ -81,6 +84,7 @@ class Settings extends Component {
 				<Navigation activeTab={ tab } site={ site } />
 				{
 					Children.map( children, child => cloneElement( child, {
+						initialValues,
 						renderRadio: this.renderRadio,
 						renderNumberInput: this.renderNumberInput,
 						renderTextInput: this.renderTextInput,
@@ -97,6 +101,7 @@ const connectComponent = connect(
 		const siteId = getSelectedSiteId( state );
 
 		return {
+			initialValues: getSettings( state, siteId ),
 			site: getSelectedSite( state ),
 			siteId,
 		};

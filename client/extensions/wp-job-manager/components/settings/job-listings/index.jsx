@@ -238,6 +238,7 @@ const connectComponent = connect(
 );
 
 const createReduxForm = reduxForm( {
+	enableReinitialize: true,
 	form: 'listings',
 	getFormState: state => state.extensions.wpJobManager.form,
 } );
