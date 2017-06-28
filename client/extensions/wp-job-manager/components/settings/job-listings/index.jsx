@@ -2,7 +2,9 @@
  * External dependencies
  */
 import React, { Component } from 'react';
+import { reduxForm } from 'redux-form';
 import { localize } from 'i18n-calypso';
+import { flowRight } from 'lodash';
 
 /**
  * Internal dependencies
@@ -273,4 +275,12 @@ class JobListings extends Component {
 	}
 }
 
-export default localize( JobListings );
+const createReduxForm = reduxForm( {
+	form: 'listings',
+	getFormState: state => state.extensions.wpJobManager.form,
+} );
+
+export default flowRight(
+	localize,
+	createReduxForm,
+)( JobListings );
