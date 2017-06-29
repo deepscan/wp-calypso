@@ -12,7 +12,7 @@ import { flowRight } from 'lodash';
 import DocumentHead from 'components/data/document-head';
 import Main from 'components/main';
 import Navigation from '../navigation';
-import QuerySettings from '../../data/query-settings';
+import QuerySettings from '../data/query-settings';
 import { getSelectedSite, getSelectedSiteId } from 'state/ui/selectors';
 import { getSettings } from '../../state/settings/selectors';
 
