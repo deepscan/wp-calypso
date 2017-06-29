@@ -19,10 +19,11 @@ import ProgressBar from 'components/progress-bar';
 import QueryJetpackPlugins from 'components/data/query-jetpack-plugins';
 import SetupHeader from './setup-header';
 import { setFinishedInstallOfRequiredPlugins } from 'woocommerce/state/sites/setup-choices/actions';
+import wp from 'lib/wp';
 
 const requiredPlugins = [
 	'woocommerce',
-	// 'wc-api-dev',
+	'wc-api-dev',
 	'woocommerce-gateway-stripe',
 	'woocommerce-services',
 ];
@@ -44,6 +45,7 @@ class RequiredPluginsInstallView extends Component {
 		this.state = {
 			installingPlugin: null,
 			progress: 0,
+			apiPluginInstalled: false,
 		};
 	}
 
@@ -69,9 +71,42 @@ class RequiredPluginsInstallView extends Component {
 
 	getWporgPluginData() {
 		requiredPlugins.map( plugin => {
+			if ( 'wc-api-dev' === plugin ) {
+				return;
+			}
 			const pluginData = getPlugin( this.props.wporg, plugin );
 			if ( ! pluginData ) {
 				this.props.fetchPluginData( plugin );
+			}
+		} );
+	}
+
+	installApiDevPlugin = ( siteId ) => {
+		const progress = this.state.progress + ( 100 / requiredPlugins.length );
+		this.setState( {
+			installingPlugin: 'wc-api-dev',
+			progress,
+		} );
+
+		const clearInstallingPlugin = () => {
+			this.setState( {
+				installingPlugin: null,
+			} );
+		};
+
+		const flagApiPluginInstalled = () => {
+			this.setState( {
+				apiPluginInstalled: true,
+			} );
+		};
+
+		wp.req.post( {
+			path: `/sites/${ siteId }/woocommerce/install-api-dev-plugin`
+		} ).then( ( data ) => {
+			clearInstallingPlugin();
+
+			if ( data && data.installed ) {
+				flagApiPluginInstalled();
 			}
 		} );
 	}
@@ -81,7 +116,19 @@ class RequiredPluginsInstallView extends Component {
 		for ( let i = 0; i < requiredPlugins.length; i++ ) {
 			const slug = requiredPlugins[ i ];
 			const plugin = find( plugins, { slug } );
-			if ( ! plugin ) {
+
+			if (
+				( 'wc-api-dev' === slug ) &&
+				( 'wc-api-dev' !== this.state.installingPlugin )
+			) {
+				if ( this.state.apiPluginInstalled ) {
+					continue;
+				}
+
+				this.installApiDevPlugin( site.ID );
+
+				return;
+			} else if ( ! plugin ) {
 				if ( ! wporg[ slug ] ) {
 					return;
 				}
@@ -89,7 +136,7 @@ class RequiredPluginsInstallView extends Component {
 				const progress = this.state.progress + ( 100 / requiredPlugins.length );
 				this.setState( {
 					installingPlugin: slug,
-					progress
+					progress,
 				} );
 				this.props.installPlugin( site.ID, wporgPlugin );
 				return;
