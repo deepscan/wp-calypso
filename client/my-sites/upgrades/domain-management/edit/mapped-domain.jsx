@@ -25,7 +25,11 @@ const MappedDomain = React.createClass( {
 
 		if ( domain.isAutoRenewing ) {
 			return (
+<<<<<<< HEAD
 				<Property label={ translate( 'Mapping renews on', { comment: 'The corresponding date is in a different cell in the UI, the date is not included within the translated string' } ) }>
+=======
+				<Property label={ translate( 'Mapping renews on', {comment: 'The corresponding date is in a different cell in the UI, the date is not included within the translated string'} ) }>
+>>>>>>> 8f5187a5a446d0c05466347f9e039aecac9103df
 					{ domain.autoRenewalMoment.format( 'LL' ) }
 				</Property>
 			);
@@ -35,7 +39,11 @@ const MappedDomain = React.createClass( {
 			<em>{ translate( 'Never Expires', { context: 'Expiration detail for a mapped domain' } ) }</em>;
 
 		return (
+<<<<<<< HEAD
 			<Property label={ translate( 'Mapping expires on', { comment: 'The corresponding date is in a different cell in the UI, the date is not included within the translated string' } ) }>
+=======
+			<Property label={ translate( 'Mapping expires on', {comment: 'The corresponding date is in a different cell in the UI, the date is not included within the translated string'} ) }>
+>>>>>>> 8f5187a5a446d0c05466347f9e039aecac9103df
 				{ expirationMessage }
 			</Property>
 		);

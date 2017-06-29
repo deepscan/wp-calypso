@@ -27,14 +27,22 @@ const RegisteredDomain = React.createClass( {
 
 		if ( domain.isAutoRenewing ) {
 			return (
+<<<<<<< HEAD
 				<Property label={ translate( 'Renews on', { comment: 'The corresponding date is in a different cell in the UI, the date is not included within the translated string' } ) }>
+=======
+				<Property label={ translate( 'Renews on', {comment: 'The corresponding date is in a different cell in the UI, the date is not included within the translated string'} ) }>
+>>>>>>> 8f5187a5a446d0c05466347f9e039aecac9103df
 					{ domain.autoRenewalMoment.format( 'LL' ) }
 				</Property>
 			);
 		}
 
 		return (
+<<<<<<< HEAD
 			<Property label={ translate( 'Expires on', { comment: 'The corresponding date is in a different cell in the UI, the date is not included within the translated string' } ) }>
+=======
+			<Property label={ translate( 'Expires on', {comment: 'The corresponding date is in a different cell in the UI, the date is not included within the translated string'} ) }>
+>>>>>>> 8f5187a5a446d0c05466347f9e039aecac9103df
 				{ domain.expirationMoment.format( 'LL' ) }
 			</Property>
 		);
@@ -211,7 +219,11 @@ const RegisteredDomain = React.createClass( {
 							{ translate( 'Registered Domain' ) }
 						</Property>
 
+<<<<<<< HEAD
 						<Property label={ translate( 'Registered on', { comment: 'The corresponding date is in a different cell in the UI, the date is not included within the translated string' } ) }>
+=======
+						<Property label={ translate( 'Registered on', {comment: 'The corresponding date is in a different cell in the UI, the date is not included within the translated string'} ) }>
+>>>>>>> 8f5187a5a446d0c05466347f9e039aecac9103df
 							{ domain.registrationMoment.format( 'LL' ) }
 						</Property>
 
