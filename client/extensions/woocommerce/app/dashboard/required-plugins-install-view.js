@@ -10,7 +10,7 @@ import { localize } from 'i18n-calypso';
 /**
  * Internal dependencies
  */
-import { installPlugin } from 'state/plugins/installed/actions';
+import { installPlugin, fetchPlugins } from 'state/plugins/installed/actions';
 import { fetchPluginData } from 'state/plugins/wporg/actions';
 import { getPlugin } from 'state/plugins/wporg/selectors';
 import { getPlugins } from 'state/plugins/installed/selectors';
@@ -45,7 +45,6 @@ class RequiredPluginsInstallView extends Component {
 		this.state = {
 			installingPlugin: null,
 			progress: 0,
-			apiPluginInstalled: false,
 		};
 	}
 
@@ -88,27 +87,16 @@ class RequiredPluginsInstallView extends Component {
 			progress,
 		} );
 
-		const clearInstallingPlugin = () => {
+		const afterApiPluginInstalled = () => {
 			this.setState( {
 				installingPlugin: null,
 			} );
-		};
-
-		const flagApiPluginInstalled = () => {
-			this.setState( {
-				apiPluginInstalled: true,
-			} );
+			this.props.fetchPlugins( [ siteId ] );
 		};
 
 		wp.req.post( {
 			path: `/sites/${ siteId }/woocommerce/install-api-dev-plugin`
-		} ).then( ( data ) => {
-			clearInstallingPlugin();
-
-			if ( data && data.installed ) {
-				flagApiPluginInstalled();
-			}
-		} );
+		} ).then( afterApiPluginInstalled );
 	}
 
 	installPlugins = ( plugins ) => {
@@ -117,21 +105,19 @@ class RequiredPluginsInstallView extends Component {
 			const slug = requiredPlugins[ i ];
 			const plugin = find( plugins, { slug } );
 
-			if (
-				( 'wc-api-dev' === slug ) &&
-				( 'wc-api-dev' !== this.state.installingPlugin )
-			) {
-				if ( this.state.apiPluginInstalled ) {
-					continue;
+			if ( ! plugin ) {
+				if ( 'wc-api-dev' === slug ) {
+					if ( 'wc-api-dev' !== this.state.installingPlugin ) {
+						this.installApiDevPlugin( site.ID );
+					}
+
+					return;
 				}
 
-				this.installApiDevPlugin( site.ID );
-
-				return;
-			} else if ( ! plugin ) {
 				if ( ! wporg[ slug ] ) {
 					return;
 				}
+
 				const wporgPlugin = getPlugin( wporg, slug );
 				const progress = this.state.progress + ( 100 / requiredPlugins.length );
 				this.setState( {
@@ -179,6 +165,7 @@ function mapDispatchToProps( dispatch ) {
 	return bindActionCreators(
 		{
 			fetchPluginData,
+			fetchPlugins,
 			installPlugin,
 			setFinishedInstallOfRequiredPlugins,
 		},
