@@ -19,6 +19,7 @@ import useAdminBarIntegration from '../../hooks/use-admin-bar-integration';
 import useAgentLayoutManager from '../../hooks/use-agent-layout-manager';
 import useConversation from '../../hooks/use-conversation';
 import useFeedback from '../../hooks/use-feedback';
+import useSaveNewChatRoute from '../../hooks/use-save-new-chat-route';
 import useSetupCustomActions from '../../hooks/use-setup-custom-actions';
 import { useShouldUseUnifiedAgent } from '../../hooks/use-should-use-unified-agent';
 import { AGENTS_MANAGER_STORE } from '../../stores';
@@ -193,6 +194,9 @@ export default function AgentDock( {
 			clearSuggestions?.();
 		}
 	}, [ dynamicSuggestions?.suggestions, registerSuggestions, clearSuggestions ] );
+
+	// Save new chat route for cross-domain conversation restore.
+	useSaveNewChatRoute( agentId, messages );
 
 	const { isLoading: isLoadingConversation } = useConversation( {
 		agentId,
