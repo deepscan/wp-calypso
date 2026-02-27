@@ -241,6 +241,9 @@ const DomainSearchStep: StepType< {
 	// except if we're in a site context or in the 100-year plan or domain flow
 	const isFirstDomainFreeForFirstYear = useMemo( () => {
 		if ( isDomainFlow( flow ) ) {
+			if ( isCiab ) {
+				return !! site && siteHasPaidPlan( site );
+			}
 			return ! site || ! siteHasPaidPlan( site );
 		}
 
@@ -249,7 +252,7 @@ const DomainSearchStep: StepType< {
 		}
 
 		return true;
-	}, [ flow, site, sourceSlug ] );
+	}, [ flow, isCiab, site, sourceSlug ] );
 
 	const slots = useMemo( () => {
 		return {
@@ -258,17 +261,17 @@ const DomainSearchStep: StepType< {
 					return null;
 				}
 
-				return <FreeDomainForAYearPromo />;
+				return <FreeDomainForAYearPromo isCiab={ isCiab } />;
 			},
 			BeforeFullCartItems: () => {
 				if ( ! isFirstDomainFreeForFirstYear ) {
 					return null;
 				}
 
-				return <FreeDomainForAYearPromo textOnly />;
+				return <FreeDomainForAYearPromo textOnly isCiab={ isCiab } />;
 			},
 		};
-	}, [ isFirstDomainFreeForFirstYear ] );
+	}, [ isFirstDomainFreeForFirstYear, isCiab ] );
 
 	const headerText = useMemo( () => {
 		if ( isNewsletterFlow( flow ) ) {
