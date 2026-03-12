@@ -4,6 +4,7 @@ import {
 	type MarkdownComponents,
 	type MarkdownExtensions,
 } from '@automattic/agenttic-ui';
+import { useSelect } from '@wordpress/data';
 import { useState, useCallback, useMemo, useEffect } from '@wordpress/element';
 import { __ } from '@wordpress/i18n';
 import { LOCAL_TOOL_RUNNING_MESSAGE } from '../../constants';
@@ -13,7 +14,10 @@ import useCopyMessage from '../../hooks/use-copy-message';
 import useFeedback from '../../hooks/use-feedback';
 import useSaveNewChatRoute from '../../hooks/use-save-new-chat-route';
 import { setSessionId } from '../../utils/agent-session';
-import { convertToolMessagesToComponents } from '../../utils/convert-tool-message-to-component';
+import {
+	convertToolMessagesToComponents,
+	disablePickersAndRemoveNextButton,
+} from '../../utils/process-tool-messages';
 import AgentChat from '../agent-chat';
 import { type Options as ChatHeaderOptions } from '../chat-header';
 import type { BigSkyMessage } from '../../types';
@@ -93,6 +97,10 @@ export default function OrchestratorChat( {
 	const [ thinkingMessage, setThinkingMessage ] = useState< string | null >( null );
 	const [ isBuildingSite, setIsBuildingSite ] = useState( false );
 	const [ deletedMessageIds, setDeletedMessageIds ] = useState< Set< string > >( new Set() );
+
+	const currentPostId = useSelect( ( select ) => {
+		return ( select( 'core/editor' ) as { getCurrentPostId?: () => number } )?.getCurrentPostId?.();
+	}, [] );
 
 	// `agentConfig` is guaranteed non-null here because AgentSetup guards rendering
 	const agentId = agentConfig!.agentId;
@@ -301,6 +309,7 @@ export default function OrchestratorChat( {
 		currentMessages = convertToolMessagesToComponents( {
 			messages: currentMessages,
 			getChatComponent,
+			currentPostId,
 		} );
 
 		// Dedup and append new messages to cached messages during back-navigation.
@@ -314,6 +323,7 @@ export default function OrchestratorChat( {
 		return currentMessages;
 	}, [
 		cachedMessages,
+		currentPostId,
 		deletedMessageIds,
 		getChatComponent,
 		hasCachedConversation,
@@ -330,7 +340,11 @@ export default function OrchestratorChat( {
 
 	const handleViewHistory = () => {
 		// Cache current conversation messages to restore when navigating back from history.
-		cachedConversation = { sessionId: getActiveSessionId(), messages: displayedMessages };
+		cachedConversation = {
+			sessionId: getActiveSessionId(),
+			// Disable stale picker components and strip `next-step-button` before caching.
+			messages: disablePickersAndRemoveNextButton( displayedMessages ),
+		};
 	};
 
 	// Determine which suggestions to show following Big Sky's logic:
