@@ -147,11 +147,7 @@ function getOfferDiscountBasedOnPurchasePrice(
 	return Math.round( offerDiscountPercentage );
 }
 
-function availableJetpackSurveySteps(
-	purchase: Purchase,
-	flowType: CancelFlowType,
-	cancellationOffer: CancellationOffer | undefined
-): string[] {
+function availableJetpackSurveySteps( purchase: Purchase, flowType: CancelFlowType ): string[] {
 	const availableSteps = [];
 
 	// If the plan is already expired or is a temporary Jetpack purchase (license),
@@ -170,6 +166,18 @@ function availableJetpackSurveySteps(
 	}
 
 	if ( CANCEL_FLOW_TYPE.REMOVE === flowType ) {
+		availableSteps.push( FEEDBACK_STEP );
+	}
+
+	return availableSteps;
+}
+
+function shouldAddCancellationOfferStep(
+	purchase: Purchase,
+	flowType: CancelFlowType,
+	cancellationOffer: CancellationOffer | undefined
+): boolean {
+	if ( CANCEL_FLOW_TYPE.REMOVE === flowType ) {
 		const isOfferPriceSameOrLowerThanPurchasePrice = cancellationOffer
 			? purchase.amount >= cancellationOffer.original_price
 			: false;
@@ -178,25 +186,19 @@ function availableJetpackSurveySteps(
 			cancellationOffer
 		);
 
-		availableSteps.push( FEEDBACK_STEP );
-		if ( isOfferPriceSameOrLowerThanPurchasePrice && offerDiscountBasedFromPurchasePrice >= 10 ) {
-			availableSteps.push( CANCELLATION_OFFER_STEP );
-		}
+		return isOfferPriceSameOrLowerThanPurchasePrice && offerDiscountBasedFromPurchasePrice >= 10;
 	}
-
-	return availableSteps;
+	return false;
 }
 
 function getBasicSurveySteps( {
 	purchase,
 	upsell,
-	cancellationOffer,
 	hasQuestionTwo,
 	plans,
 }: {
 	purchase: Purchase;
 	upsell: CancelPurchaseState[ 'upsell' ];
-	cancellationOffer: CancellationOffer | undefined;
 	hasQuestionTwo: boolean;
 	plans: PlanProduct[];
 } ): string[] {
@@ -214,7 +216,7 @@ function getBasicSurveySteps( {
 		return [];
 	}
 	if ( isJetpack ) {
-		return availableJetpackSurveySteps( purchase, flowType, cancellationOffer );
+		return availableJetpackSurveySteps( purchase, flowType );
 	}
 	if ( purchase.is_domain_registration ) {
 		return [ FEEDBACK_STEP, NEXT_ADVENTURE_STEP ];
@@ -253,7 +255,6 @@ function getAllSurveySteps( {
 	let steps = getBasicSurveySteps( {
 		purchase,
 		upsell,
-		cancellationOffer,
 		hasQuestionTwo,
 		plans,
 	} );
@@ -269,6 +270,10 @@ function getAllSurveySteps( {
 		const stepsToRemove = [ FEEDBACK_STEP, NEXT_ADVENTURE_STEP ];
 		steps = steps.filter( ( step ) => ! stepsToRemove.includes( step ) );
 		steps = [ REMOVE_PLAN_STEP, ...steps ];
+	}
+
+	if ( shouldAddCancellationOfferStep( purchase, flowType, cancellationOffer ) ) {
+		steps.push( CANCELLATION_OFFER_STEP );
 	}
 
 	return steps;
