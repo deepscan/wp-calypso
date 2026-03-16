@@ -1120,9 +1120,6 @@ export default function pages() {
 				isAllowedCiabDashboardHostname( req.hostname )
 			);
 		} );
-		handleRoute( CIAB_DASHBOARD_SECTION_DEFINITION, '/ciab', 'entry-dashboard-ciab', ( req ) => {
-			return isAllowedDotcomDashboardHostname( req.hostname );
-		} );
 	}
 
 	sections
