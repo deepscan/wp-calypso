@@ -11,7 +11,7 @@ type GiftSubscriptionModalProps = {
 	userId: number | string;
 	siteId: number;
 	username: string;
-	onCancel: () => void;
+	onClose: () => void;
 	onConfirm: () => void;
 };
 
@@ -25,7 +25,7 @@ const GiftSubscriptionModal = ( {
 	siteId,
 	userId,
 	username,
-	onCancel,
+	onClose,
 	onConfirm,
 }: GiftSubscriptionModalProps ) => {
 	const translate = useTranslate();
@@ -33,6 +33,7 @@ const GiftSubscriptionModal = ( {
 	const dispatch = useDispatch();
 
 	const [ planId, setPlanId ] = useState( 0 );
+	const [ isSubmitting, setIsSubmitting ] = useState( false );
 
 	useEffect( () => {
 		recordTracksEvent( 'calypso_subscribers_comp_modal_open', {
@@ -45,6 +46,8 @@ const GiftSubscriptionModal = ( {
 	const text = translate( 'Select a plan to gift to this user: ' );
 
 	const giftSubscription = ( plan_id: number, user_id: number | string, username: string ) => {
+		setIsSubmitting( true );
+
 		const giftDetails: Gift = {
 			gift_id: null,
 			plan_id: plan_id,
@@ -67,13 +70,19 @@ const GiftSubscriptionModal = ( {
 						username: username,
 					},
 				} ),
-				onConfirm
+				( { success }: { success: boolean } ) => {
+					setIsSubmitting( false );
+					if ( success ) {
+						onConfirm();
+					}
+					onClose();
+				}
 			)
 		);
 	};
 
 	return (
-		<Modal overlayClassName="confirm-modal" title={ title } onRequestClose={ onCancel }>
+		<Modal overlayClassName="confirm-modal" title={ title } onRequestClose={ onClose }>
 			{ text && <p>{ text }</p> }
 			<ProductsSelector
 				onSelectedPlanIdsChange={ ( list ) => setPlanId( list[ 0 ] ?? 0 ) }
@@ -81,13 +90,14 @@ const GiftSubscriptionModal = ( {
 				allowMultiple={ false }
 			/>
 			<div className="confirm-modal__buttons">
-				<Button className="confirm-modal__cancel" onClick={ onCancel }>
+				<Button className="confirm-modal__cancel" onClick={ onClose }>
 					{ translate( 'Cancel' ) }
 				</Button>
 				<Button
 					onClick={ () => giftSubscription( planId, userId, username ) }
 					primary
-					disabled={ planId === 0 }
+					busy={ isSubmitting }
+					disabled={ planId === 0 || isSubmitting }
 				>
 					{ translate( 'Confirm' ) }
 				</Button>
