@@ -26,6 +26,8 @@ export interface AgentsManagerProps {
 	site?: AgentsManagerSite | null;
 	/** The current route path. */
 	currentRoute?: string;
+	/** The ID of the currently selected site, or undefined for non-site contexts. */
+	currentSiteId?: number;
 	/** Called when the agent is closed. */
 	handleClose?: () => void;
 }
@@ -37,6 +39,7 @@ export default function AgentsManager( {
 	currentUser,
 	site,
 	currentRoute,
+	currentSiteId,
 }: AgentsManagerProps ): JSX.Element | null {
 	// Wait for the store to load before rendering PersistentRouter
 	// This ensures router history is restored from persisted state
@@ -49,10 +52,14 @@ export default function AgentsManager( {
 		return null;
 	}
 
+	const siteKey = currentSiteId ? String( currentSiteId ) : 'no-site';
+
 	return (
-		<AgentsManagerContextProvider value={ { sectionName, currentUser, site, currentRoute } }>
+		<AgentsManagerContextProvider
+			value={ { sectionName, currentUser, site, siteKey, currentRoute } }
+		>
 			<QueryClientProvider client={ queryClient }>
-				<PersistentRouter>
+				<PersistentRouter siteKey={ siteKey }>
 					<AgentSetup />
 				</PersistentRouter>
 			</QueryClientProvider>
