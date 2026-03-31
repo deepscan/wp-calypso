@@ -34,6 +34,7 @@ import {
 	SidebarMenuItem,
 } from '../../components/sidebar';
 import { hasHostingFeature } from '../../utils/site-features';
+import { isSiteMigrationInProgress } from '../../utils/site-status';
 import { hasSiteTrialEnded } from '../../utils/site-trial';
 import { getSiteTypeFeatureSupports } from '../../utils/site-type-feature-support';
 import { isSelfHostedJetpackConnected } from '../../utils/site-types';
@@ -70,6 +71,10 @@ export default function SiteSidebar() {
 function SiteMenuSidebar( { site }: { site: Site } ) {
 	const siteSlug = site.slug;
 	const siteTypeSupports = getSiteTypeFeatureSupports( site );
+
+	if ( isSiteMigrationInProgress( site ) ) {
+		return null;
+	}
 
 	if ( hasSiteTrialEnded( site ) ) {
 		return (
