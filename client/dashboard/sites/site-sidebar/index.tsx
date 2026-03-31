@@ -2,7 +2,7 @@ import { HostingFeatures } from '@automattic/api-core';
 import { siteBySlugQuery } from '@automattic/api-queries';
 import { isSupportSession } from '@automattic/calypso-support-session';
 import { useQuery } from '@tanstack/react-query';
-import { __experimentalVStack as VStack, useNavigator } from '@wordpress/components';
+import { __experimentalVStack as VStack } from '@wordpress/components';
 import { __ } from '@wordpress/i18n';
 import {
 	backup,
@@ -16,6 +16,7 @@ import {
 	shield,
 } from '@wordpress/icons';
 import {
+	siteRoute,
 	siteOverviewRoute,
 	siteDeploymentsRoute,
 	sitePerformanceRoute,
@@ -45,9 +46,7 @@ import type { Site } from '@automattic/api-core';
 import type { AnyRoute } from '@tanstack/react-router';
 
 export default function SiteSidebar() {
-	const { params } = useNavigator();
-	const siteSlug = params.siteSlug as string;
-
+	const { siteSlug } = siteRoute.useParams();
 	const { data: site } = useQuery( siteBySlugQuery( siteSlug ) );
 
 	if ( ! site ) {
