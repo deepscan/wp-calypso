@@ -4,6 +4,7 @@ import { SiteIcon } from 'calypso/blocks/site-icon';
 import AutoDirection from 'calypso/components/auto-direction';
 import QueryReaderSite from 'calypso/components/data/query-reader-site';
 import ReaderFollowButton from 'calypso/reader/follow-button';
+import { getStreamUrl } from 'calypso/reader/route';
 import { useSelector, useDispatch } from 'calypso/state';
 import { successNotice } from 'calypso/state/notices/actions';
 import { getSite } from 'calypso/state/reader/sites/selectors';
@@ -13,6 +14,7 @@ interface ReaderSiteItemProps {
 	site: ReaderSite;
 	variant: 'card' | 'compact' | 'default';
 	followSource: string;
+	iconSize?: number;
 }
 
 export interface ReaderSite {
@@ -26,6 +28,7 @@ export interface ReaderSite {
 export function ReaderSiteItem( {
 	site,
 	variant,
+	iconSize = 42,
 	followSource,
 }: ReaderSiteItemProps ): JSX.Element {
 	const translate = useTranslate();
@@ -34,13 +37,7 @@ export function ReaderSiteItem( {
 	const siteDetails = useSelector( ( state ) => getSite( state, Number( siteId ) ) ) as SiteDetails;
 	const siteIcon = siteDetails?.icon?.img || siteDetails?.icon?.ico || image;
 	const isCompactView = variant === 'compact';
-
-	let linkUrl = feedUrl;
-	if ( feedId ) {
-		linkUrl = `/reader/feeds/${ feedId }`;
-	} else if ( siteId ) {
-		linkUrl = `/reader/blogs/${ siteId }`;
-	}
+	const linkUrl = getStreamUrl( feedId, siteId ) ?? feedUrl;
 
 	function onFollowToggle( isFollowing: boolean ): void {
 		const displayName: string = name || filterURLForDisplay( feedUrl ?? '' );
@@ -66,7 +63,7 @@ export function ReaderSiteItem( {
 			<QueryReaderSite siteId={ siteId } />
 
 			<a className="reader-site-item__link" href={ linkUrl }>
-				<SiteIcon iconUrl={ siteIcon } size={ variant === 'default' ? 48 : 30 } />
+				<SiteIcon iconUrl={ siteIcon } size={ iconSize } />
 
 				<AutoDirection>
 					<div className="reader-site-info">

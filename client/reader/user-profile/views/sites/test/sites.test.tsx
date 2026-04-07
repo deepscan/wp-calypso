@@ -3,15 +3,17 @@
  */
 import { render, screen } from '@testing-library/react';
 import { ReaderSite } from 'calypso/reader/sites-list/site-item';
+import useUserSitesQuery, {
+	UserSitesResponse,
+} from 'calypso/reader/user-profile/queries/use-user-sites-query';
 import UserSites from '..';
-import useUserSitesQuery, { UserSitesResponse } from '../use-user-sites-query';
 import type { UserProfileData } from 'calypso/lib/user/user';
 
 jest.mock( 'calypso/state', () => ( {
 	useSelector: jest.fn(),
 } ) );
 
-jest.mock( '../use-user-sites-query', () => ( {
+jest.mock( 'calypso/reader/user-profile/queries/use-user-sites-query', () => ( {
 	__esModule: true,
 	default: jest.fn(),
 } ) );
