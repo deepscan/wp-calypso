@@ -6,6 +6,7 @@ import {
 	Button,
 	Modal,
 } from '@wordpress/components';
+import { useEvent } from '@wordpress/compose';
 import { createInterpolateElement } from '@wordpress/element';
 import { __ } from '@wordpress/i18n';
 import { copy, globe } from '@wordpress/icons';
@@ -21,19 +22,35 @@ interface SiteLaunchCelebrationModalProps {
 	site: Pick< Site, 'ID' | 'slug' | 'URL' | 'launch_status' > & {
 		plan?: Pick< Required< Site >[ 'plan' ], 'is_free' | 'product_slug' >;
 	};
+	onOpen?(): void;
+	onClose?(): void;
 }
 
-export default function SiteLaunchCelebrationModal( { site }: SiteLaunchCelebrationModalProps ) {
+export default function SiteLaunchCelebrationModal( {
+	site,
+	onOpen: externalOnOpen,
+	onClose,
+}: SiteLaunchCelebrationModalProps ) {
 	const [ isOpen, setIsOpen ] = useState( false );
 	const [ clipboardCopied, setClipboardCopied ] = useState( false );
 	const { recordTracksEvent } = useAnalytics();
 	const { queries } = useAppContext();
-	const { data: domains = [], isFetchedAfterMount: isDomainsFetched } = useQuery( {
+	const { data: domains = [], isFetchedAfterMount: isDomainsDataReady } = useQuery( {
 		...queries.domainsQuery(),
 		enabled: isOpen,
 		select: ( data ) => data.filter( ( domain ) => domain.blog_id === site.ID ),
 	} );
 	const copyButtonRef = useRef< HTMLButtonElement >( null );
+
+	const onOpen = useEvent( () => {
+		externalOnOpen?.();
+		setIsOpen( true );
+
+		// Track the modal view
+		recordTracksEvent( 'calypso_launchpad_celebration_modal_view', {
+			product_slug: site?.plan?.product_slug,
+		} );
+	} );
 
 	// Check if celebration modal should be shown based on URL param and site launch status
 	useEffect( () => {
@@ -41,30 +58,11 @@ export default function SiteLaunchCelebrationModal( { site }: SiteLaunchCelebrat
 			'celebrateLaunch'
 		);
 		if ( site.launch_status === 'launched' && hasCelebrateLaunch ) {
-			setIsOpen( true );
+			onOpen();
 		}
-	}, [ site.launch_status ] );
+	}, [ site.launch_status, onOpen ] );
 
-	useEffect( () => {
-		// Only run cleanup and analytics when modal is open
-		if ( ! isOpen ) {
-			return;
-		}
-
-		// Remove the celebrateLaunch URL param without reloading the page
-		window.history.replaceState(
-			null,
-			'',
-			removeQueryArgs( window.location.href, 'celebrateLaunch' )
-		);
-
-		// Track the modal view
-		recordTracksEvent( 'calypso_launchpad_celebration_modal_view', {
-			product_slug: site?.plan?.product_slug,
-		} );
-	}, [ isOpen, site?.plan?.product_slug, recordTracksEvent ] );
-
-	if ( ! isOpen || ! isDomainsFetched ) {
+	if ( ! isOpen || ! isDomainsDataReady ) {
 		return null;
 	}
 
@@ -148,7 +146,17 @@ export default function SiteLaunchCelebrationModal( { site }: SiteLaunchCelebrat
 			className="celebration-modal"
 			title={ __( 'Congrats, your site is live!' ) }
 			size="medium"
-			onRequestClose={ () => setIsOpen( false ) }
+			onRequestClose={ () => {
+				setIsOpen( false );
+				onClose?.();
+
+				// Remove the celebrateLaunch URL param without reloading the page
+				window.history.replaceState(
+					null,
+					'',
+					removeQueryArgs( window.location.href, 'celebrateLaunch' )
+				);
+			} }
 		>
 			<ConfettiAnimation />
 			<VStack spacing={ 6 }>
