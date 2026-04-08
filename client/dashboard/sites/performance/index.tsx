@@ -15,6 +15,7 @@ import { PageHeader } from '../../components/page-header';
 import PageLayout from '../../components/page-layout';
 import HostingFeatureGatedWithCallout from '../hosting-feature-gated-with-callout';
 import { SiteLaunchButton } from '../site-launch-button';
+import SiteLaunchCelebrationModal from '../site-launch-celebration-modal';
 import DeviceToggle from './device-toggle';
 import PageSelector from './page-selector';
 import { getPerformanceCalloutProps } from './performance-callout';
@@ -172,6 +173,17 @@ function SitePerformanceContent( { site }: { site: Site } ) {
 function SitePerformance() {
 	const { siteSlug } = siteRoute.useParams();
 	const { data: site } = useSuspenseQuery( siteBySlugQuery( siteSlug ) );
+	const [ isCelebrationModalOpen, setIsCelebrationModalOpen ] = useState( false );
+
+	useEffect( () => {
+		const hasCelebrateLaunch = new URLSearchParams( window.location.search ).has(
+			'celebrateLaunch'
+		);
+		// Only open the modal if the param is present; closing is handled by onClose
+		if ( site.launch_status === 'launched' && hasCelebrateLaunch ) {
+			setIsCelebrationModalOpen( true );
+		}
+	}, [ site.launch_status ] );
 
 	return (
 		<HostingFeatureGatedWithCallout site={ site } fullPage { ...getPerformanceCalloutProps() }>
@@ -201,6 +213,12 @@ function SitePerformance() {
 				<SitePerformanceContent site={ site } />
 			) }
 			<PerformanceTrackerStop />
+			{ isCelebrationModalOpen && (
+				<SiteLaunchCelebrationModal
+					site={ site }
+					onClose={ () => setIsCelebrationModalOpen( false ) }
+				/>
+			) }
 		</HostingFeatureGatedWithCallout>
 	);
 }
