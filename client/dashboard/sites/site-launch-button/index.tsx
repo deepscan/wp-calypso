@@ -22,6 +22,7 @@ export function SiteLaunchButton( {
 	tracksContext,
 	launchUrl,
 	LaunchModal,
+	onSiteLaunch,
 }: {
 	site: Site;
 	tracksContext: string;
@@ -31,6 +32,7 @@ export function SiteLaunchButton( {
 		onClose: () => void;
 		onLaunch: () => void;
 	} >;
+	onSiteLaunch?: () => void;
 } ) {
 	const { queries } = useAppContext();
 	const { recordTracksEvent } = useAnalytics();
@@ -84,6 +86,9 @@ export function SiteLaunchButton( {
 	const handleLaunch = () => {
 		handleTracksEvent();
 		launchMutation.mutate( undefined, {
+			onSuccess: () => {
+				onSiteLaunch?.();
+			},
 			onSettled: () => {
 				setIsLaunchModalOpen( false );
 			},
@@ -94,6 +99,8 @@ export function SiteLaunchButton( {
 		handleTracksEvent();
 		launchMutation.mutate( undefined, {
 			onSuccess: () => {
+				onSiteLaunch?.();
+
 				// Add query param to trigger celebration modal in parent component
 				window.history.replaceState(
 					null,
