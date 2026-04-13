@@ -109,4 +109,57 @@ describe( '<WordPressSettings>', () => {
 		expect( screen.getByRole( 'button', { name: 'Activate' } ) ).toBeVisible();
 		expect( screen.queryByRole( 'button', { name: 'Save' } ) ).not.toBeInTheDocument();
 	} );
+
+	test( 'renders upsell when the site does not have the plan feature', async () => {
+		mockSite( {
+			...site,
+			is_wpcom_atomic: false,
+			is_wpcom_staging_site: false,
+			plan: {
+				product_slug: 'personal-bundle',
+				product_name_short: 'Personal',
+				is_free: false,
+				features: { active: [] },
+			},
+		} as unknown as Site );
+
+		render( <WordPressSettings siteSlug={ site.slug } /> );
+		await screen.findByRole( 'heading', { name: 'WordPress' } );
+
+		expect( screen.getByRole( 'button', { name: 'Upgrade plan' } ) ).toBeVisible();
+		expect( screen.queryByRole( 'button', { name: 'Save' } ) ).not.toBeInTheDocument();
+	} );
+
+	describe( 'with beta program disabled', () => {
+		beforeAll( () => {
+			disable( 'dashboard/wp-beta-program' );
+		} );
+
+		afterAll( () => {
+			enable( 'dashboard/wp-beta-program' );
+		} );
+
+		test( 'renders the form for a staging site', async () => {
+			mockApi();
+
+			render( <WordPressSettings siteSlug={ site.slug } /> );
+			await screen.findByRole( 'heading', { name: 'WordPress' } );
+
+			expect( await screen.findByRole( 'combobox', { name: 'WordPress version' } ) ).toBeVisible();
+		} );
+
+		test( 'renders the latest-version notice for a non-staging site', async () => {
+			mockSite( { ...site, is_wpcom_staging_site: false } as Site );
+
+			render( <WordPressSettings siteSlug={ site.slug } /> );
+			await screen.findByRole( 'heading', { name: 'WordPress' } );
+
+			expect(
+				screen.getByText( /Every WordPress\.com site runs the latest WordPress version/ )
+			).toBeVisible();
+			expect(
+				screen.queryByRole( 'combobox', { name: 'WordPress version' } )
+			).not.toBeInTheDocument();
+		} );
+	} );
 } );

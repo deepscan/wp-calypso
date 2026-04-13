@@ -4,6 +4,7 @@ import {
 	siteWordPressVersionQuery,
 	wpOrgCoreVersionQuery,
 } from '@automattic/api-queries';
+import { isEnabled } from '@automattic/calypso-config';
 import { useQuery, useSuspenseQuery } from '@tanstack/react-query';
 import { __experimentalVStack as VStack, __experimentalText as Text } from '@wordpress/components';
 import { createInterpolateElement } from '@wordpress/element';
@@ -14,7 +15,6 @@ import Notice from '../../components/notice';
 import { PageHeader } from '../../components/page-header';
 import PageLayout from '../../components/page-layout';
 import { getFormattedWordPressVersion } from '../../utils/wp-version';
-import { canViewWordPressSettings } from '../features';
 import HostingFeatureGatedWithCallout from '../hosting-feature-gated-with-callout';
 import { BetaProgramNotice } from './beta-program-notice';
 import { LatestVersionNotice } from './latest-version-notice';
@@ -62,53 +62,62 @@ function VersionManagement( { site }: { site: Site } ) {
 export default function WordPressSettings( { siteSlug }: { siteSlug: string } ) {
 	const { data: site } = useSuspenseQuery( siteBySlugQuery( siteSlug ) );
 
-	const header = (
-		<PageHeader
-			prefix={ <Breadcrumbs length={ 2 } /> }
-			title="WordPress"
-			description={ __( 'Manage your WordPress version.' ) }
-		/>
-	);
+	const renderContent = () => {
+		if ( isEnabled( 'dashboard/wp-beta-program' ) ) {
+			return (
+				<HostingFeatureGatedWithCallout
+					site={ site }
+					feature={ HostingFeatures.BACKUPS_SELF_SERVE }
+					upsellId="site-settings-wordpress"
+				>
+					<VersionManagement site={ site } />
+				</HostingFeatureGatedWithCallout>
+			);
+		}
 
-	if ( ! canViewWordPressSettings( site ) ) {
+		if ( site.is_wpcom_staging_site ) {
+			return <VersionManagement site={ site } />;
+		}
+
 		return (
-			<PageLayout size="small" header={ header }>
-				<Notice>
-					<VStack>
+			<Notice>
+				<VStack>
+					<Text as="p">
+						{ sprintf(
+							// translators: %s: WordPress version, e.g. 6.8
+							__( 'Every WordPress.com site runs the latest WordPress version (%s).' ),
+							getFormattedWordPressVersion( site )
+						) }
+					</Text>
+					{ site.is_wpcom_atomic && (
 						<Text as="p">
-							{ sprintf(
-								// translators: %s: WordPress version, e.g. 6.8
-								__( 'Every WordPress.com site runs the latest WordPress version (%s).' ),
-								getFormattedWordPressVersion( site )
+							{ createInterpolateElement(
+								__(
+									'Switch to a staging site to test a beta version of the next WordPress release. <learnMoreLink />'
+								),
+								{
+									learnMoreLink: <InlineSupportLink supportContext="switch-to-staging-site" />,
+								}
 							) }
 						</Text>
-						{ site.is_wpcom_atomic && (
-							<Text as="p">
-								{ createInterpolateElement(
-									__(
-										'Switch to a staging site to test a beta version of the next WordPress release. <learnMoreLink />'
-									),
-									{
-										learnMoreLink: <InlineSupportLink supportContext="switch-to-staging-site" />,
-									}
-								) }
-							</Text>
-						) }
-					</VStack>
-				</Notice>
-			</PageLayout>
+					) }
+				</VStack>
+			</Notice>
 		);
-	}
+	};
 
 	return (
-		<PageLayout size="small" header={ header }>
-			<HostingFeatureGatedWithCallout
-				site={ site }
-				feature={ HostingFeatures.BACKUPS_SELF_SERVE }
-				upsellId="site-settings-wordpress"
-			>
-				<VersionManagement site={ site } />
-			</HostingFeatureGatedWithCallout>
+		<PageLayout
+			size="small"
+			header={
+				<PageHeader
+					prefix={ <Breadcrumbs length={ 2 } /> }
+					title="WordPress"
+					description={ __( 'Manage your WordPress version.' ) }
+				/>
+			}
+		>
+			{ renderContent() }
 		</PageLayout>
 	);
 }
