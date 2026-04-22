@@ -9,9 +9,10 @@ import {
 	READER_ONBOARDING_SEEN_PREFERENCE_KEY,
 	READER_ONBOARDING_PREFERENCE_KEY,
 	READER_ONBOARDING_TRACKS_EVENT_PREFIX,
-} from 'calypso/reader/onboarding/constants';
-import InterestsModal from 'calypso/reader/onboarding/interests-modal';
-import SubscribeModal from 'calypso/reader/onboarding/subscribe-modal';
+} from 'calypso/reader/onboarding-rsm/constants';
+import InterestsModal from 'calypso/reader/onboarding-rsm/interests-modal';
+import SubscribeModal from 'calypso/reader/onboarding-rsm/subscribe-modal';
+import WelcomeModal from 'calypso/reader/onboarding-rsm/welcome-modal';
 import { useDispatch, useSelector } from 'calypso/state';
 import { getCurrentUserDate } from 'calypso/state/current-user/selectors';
 import { requestGravatarDetails } from 'calypso/state/gravatar-status/actions';
@@ -24,7 +25,7 @@ import { getReaderFollowedTags } from 'calypso/state/reader/tags/selectors';
 import { useSiteSubscriptions } from '../following/use-site-subscriptions';
 import './style.scss';
 
-const ReaderOnboarding = ( {
+const ReaderOnboardingRsm = ( {
 	onRender,
 	isSuppressed = false,
 }: {
@@ -32,6 +33,8 @@ const ReaderOnboarding = ( {
 	isSuppressed?: boolean;
 } ) => {
 	const dispatch = useDispatch();
+	const [ isWelcomeModalOpen, setIsWelcomeModalOpen ] = useState( false );
+	const [ hasCompletedWelcomeStep, setHasCompletedWelcomeStep ] = useState( false );
 	const [ isInterestsModalOpen, setIsInterestsModalOpen ] = useState( false );
 	const [ isDiscoverModalOpen, setIsDiscoverModalOpen ] = useState( false );
 
@@ -74,6 +77,19 @@ const ReaderOnboarding = ( {
 	const shouldRenderOnboarding = shouldShowOnboarding && ! isSuppressed;
 
 	// Modal state handlers with tracking.
+	const openWelcomeModal = () => {
+		recordTracksEvent( `${ READER_ONBOARDING_TRACKS_EVENT_PREFIX }welcome_modal_open` );
+		setIsWelcomeModalOpen( true );
+	};
+
+	const closeWelcomeModal = () => {
+		recordTracksEvent( `${ READER_ONBOARDING_TRACKS_EVENT_PREFIX }welcome_modal_close` );
+		setIsWelcomeModalOpen( false );
+		if ( ! hasSeenOnboarding ) {
+			dispatch( savePreference( READER_ONBOARDING_SEEN_PREFERENCE_KEY, true ) );
+		}
+	};
+
 	const openInterestsModal = () => {
 		recordTracksEvent( `${ READER_ONBOARDING_TRACKS_EVENT_PREFIX }interests_modal_open` );
 		setIsInterestsModalOpen( true );
@@ -82,9 +98,6 @@ const ReaderOnboarding = ( {
 	const closeInterestsModal = () => {
 		recordTracksEvent( `${ READER_ONBOARDING_TRACKS_EVENT_PREFIX }interests_modal_close` );
 		setIsInterestsModalOpen( false );
-		if ( ! hasSeenOnboarding ) {
-			dispatch( savePreference( READER_ONBOARDING_SEEN_PREFERENCE_KEY, true ) );
-		}
 	};
 
 	const openDiscoverModal = () => {
@@ -95,6 +108,13 @@ const ReaderOnboarding = ( {
 	const closeDiscoverModal = () => {
 		recordTracksEvent( `${ READER_ONBOARDING_TRACKS_EVENT_PREFIX }discover_modal_close` );
 		setIsDiscoverModalOpen( false );
+	};
+
+	const handleWelcomeContinue = () => {
+		recordTracksEvent( `${ READER_ONBOARDING_TRACKS_EVENT_PREFIX }welcome_modal_continue` );
+		setHasCompletedWelcomeStep( true );
+		closeWelcomeModal();
+		openInterestsModal();
 	};
 
 	const handleInterestsContinue = () => {
@@ -122,10 +142,10 @@ const ReaderOnboarding = ( {
 		}
 	}, [ shouldRenderOnboarding, dispatch ] );
 
-	// Auto-open the interests modal if onboarding should render and it has never been opened before
+	// Auto-open the welcome modal if onboarding should render and it has never been opened before.
 	useEffect( () => {
 		if ( shouldRenderOnboarding && preferencesLoaded && ! hasSeenOnboarding ) {
-			openInterestsModal();
+			openWelcomeModal();
 		}
 	}, [ shouldRenderOnboarding, preferencesLoaded, hasSeenOnboarding, dispatch ] );
 
@@ -160,11 +180,18 @@ const ReaderOnboarding = ( {
 
 	const tasks: Task[] = [
 		{
+			id: 'welcome',
+			title: translate( 'Welcome to Reader' ),
+			actionDispatch: openWelcomeModal,
+			completed: hasCompletedWelcomeStep,
+			disabled: false,
+		},
+		{
 			id: 'select-interests',
 			title: translate( 'Select some of your interests' ),
 			actionDispatch: openInterestsModal,
 			completed: hasFollowedTags,
-			disabled: false,
+			disabled: ! hasCompletedWelcomeStep,
 		},
 		{
 			id: 'discover-sites',
@@ -210,6 +237,11 @@ const ReaderOnboarding = ( {
 				</div>
 			</div>
 
+			<WelcomeModal
+				isOpen={ isWelcomeModalOpen }
+				onClose={ closeWelcomeModal }
+				onContinue={ handleWelcomeContinue }
+			/>
 			<InterestsModal
 				isOpen={ isInterestsModalOpen }
 				onClose={ closeInterestsModal }
@@ -220,4 +252,4 @@ const ReaderOnboarding = ( {
 	);
 };
 
-export default ReaderOnboarding;
+export default ReaderOnboardingRsm;
