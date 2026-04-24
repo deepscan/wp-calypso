@@ -75,7 +75,7 @@ const UserProfileHeader = ( { user, view }: UserProfileHeaderProps ): JSX.Elemen
 		<>
 			<header className="user-profile-header">
 				<div className="user-profile-header__user-info">
-					<UserAvatar user={ user } size={ 56 } />
+					<UserAvatar user={ user } size={ 56 } hideHovercard />
 					<div className="user-profile-header__names">
 						<h1>
 							{ user.display_name }
@@ -127,7 +127,9 @@ const UserProfileHeader = ( { user, view }: UserProfileHeaderProps ): JSX.Elemen
 					</AutoDirection>
 				) }
 
-				<UserTopSites userId={ user.ID } userLogin={ user.user_login } />
+				{ user.ID && user.user_login && (
+					<UserTopSites userId={ user.ID } userLogin={ user.user_login } />
+				) }
 			</header>
 			<SectionNav enforceTabsView variation="minimal">
 				<NavTabs>
