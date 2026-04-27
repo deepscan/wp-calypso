@@ -1,11 +1,69 @@
 @import '@wordpress/base-styles/variables';
 
+/* Callout */
+@mixin dashboard-dark-theme-callout {
+	.dashboard-callout__content > :first-child {
+		color: var( --dashboard__text-color );
+		fill: currentColor;
+
+		svg {
+			fill: currentColor;
+		}
+	}
+}
+
 /* Card */
 @mixin dashboard-dark-theme-card {
 	.components-surface.components-card {
 		background-color: var( --dashboard-surface__background-color );
 		color: var( --dashboard__text-color );
 		box-shadow: inset 0 0 0 1px var( --dashboard-surface__border-color );
+	}
+
+	.components-surface.components-card.dashboard-notice {
+		&.is-info {
+			background-color: color-mix(
+				in srgb,
+				var( --wp-admin-theme-color ) 8%,
+				var( --dashboard-surface__background-color )
+			);
+		}
+
+		&.is-warning {
+			background-color: color-mix(
+				in srgb,
+				var( --dashboard__background-color-warning ) 8%,
+				var( --dashboard-surface__background-color )
+			);
+
+			.dashboard-notice__icon {
+				fill: var( --dashboard__background-color-warning );
+			}
+		}
+
+		&.is-success {
+			background-color: color-mix(
+				in srgb,
+				var( --dashboard__background-color-success ) 8%,
+				var( --dashboard-surface__background-color )
+			);
+
+			.dashboard-notice__icon {
+				fill: var( --dashboard__background-color-success );
+			}
+		}
+
+		&.is-error {
+			background-color: color-mix(
+				in srgb,
+				var( --dashboard__background-color-error ) 8%,
+				var( --dashboard-surface__background-color )
+			);
+
+			.dashboard-notice__icon {
+				fill: var( --dashboard__background-color-error );
+			}
+		}
 	}
 
 	.components-card__divider {
@@ -538,6 +596,31 @@
 		color: var( --dashboard-subtle__color );
 	}
 
+	.dataviews-view-list__media-wrapper:has( .dashboard-backups__list-icon ) {
+		background-color: var( --wp-components-color-gray-200 );
+
+		.dashboard-backups__list-icon {
+			fill: var( --wp-components-color-gray-700 );
+		}
+
+		&::after {
+			box-shadow: inset 0 0 0 1px var( --wp-components-color-gray-300 );
+		}
+	}
+
+	.dashboard-overview-latest-activity-card
+		.dataviews-view-list__media-wrapper:has( .dashboard-overview-latest-activity-card__icon ) {
+		background-color: var( --wp-components-color-gray-200 );
+
+		.dashboard-overview-latest-activity-card__icon {
+			fill: var( --wp-components-color-gray-700 );
+		}
+
+		&::after {
+			box-shadow: inset 0 0 0 1px var( --wp-components-color-gray-300 );
+		}
+	}
+
 	// Filter summary chips (upstream hardcodes `$gray-100`/`$gray-200` and
 	// `$gray-800`/`$gray-900` which don't respond to the dark theme).
 	.dataviews-filters__summary-chip-container .dataviews-filters__summary-chip {
@@ -570,6 +653,15 @@
 		&:hover {
 			color: var( --wp-admin-theme-color );
 		}
+	}
+}
+
+/* Scan */
+@mixin dashboard-dark-theme-scan {
+	.site-scan-threats__type-icon {
+		background-color: var( --wp-components-color-gray-200 );
+		box-shadow: inset 0 0 0 1px var( --wp-components-color-gray-300 );
+		fill: var( --wp-components-color-gray-700 );
 	}
 }
 
@@ -669,11 +761,11 @@
 	}
 
 	.plugin-icon-wrapper.is-fallback {
-		background: var( --dashboard-surface__background-color );
-		border-color: var( --dashboard-surface__border-color );
+		background: var( --wp-components-color-gray-200 );
+		border-color: var( --wp-components-color-gray-300 );
 
 		svg {
-			fill: var( --dashboard__text-muted-color );
+			fill: var( --wp-components-color-gray-700 );
 		}
 	}
 
@@ -807,6 +899,7 @@
 	@include dashboard-dark-theme-action-list;
 	@include dashboard-dark-theme-breadcrumbs;
 	@include dashboard-dark-theme-card;
+	@include dashboard-dark-theme-callout;
 	@include dashboard-dark-theme-dataviews;
 	@include dashboard-dark-theme-destructive-secondary-button;
 	@include dashboard-dark-theme-emails;
@@ -816,6 +909,7 @@
 	@include dashboard-dark-theme-popover;
 	@include dashboard-dark-theme-plugins;
 	@include dashboard-dark-theme-muted-text;
+	@include dashboard-dark-theme-scan;
 	@include dashboard-dark-theme-section-header;
 	@include dashboard-dark-theme-site-icon;
 	@include dashboard-dark-theme-summary-button;
