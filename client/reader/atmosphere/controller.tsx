@@ -2,6 +2,7 @@ import { isEnabled } from '@automattic/calypso-config';
 import page, { type Context } from '@automattic/calypso-router';
 import AsyncLoad from 'calypso/components/async-load';
 import { TIMELINE_TAB } from './helper';
+import { DID_RE, RKEY_RE } from './route';
 
 function ensureAtmosphereEnabled(): boolean {
 	if ( ! isEnabled( 'reader/social' ) ) {
@@ -76,6 +77,41 @@ export const atmosphereAccount = ( context: Context, next: () => void ) => {
 			placeholder={ null }
 			connectionId={ id }
 			tab={ tab }
+		/>
+	);
+	next();
+};
+
+export const atmosphereThread = ( context: Context, next: () => void ) => {
+	if ( ! ensureAtmosphereEnabled() ) {
+		return;
+	}
+
+	const id = Number( context.params.id );
+	const did = String( context.params.did ?? '' );
+	const rkey = String( context.params.rkey ?? '' );
+
+	const idValid = Number.isFinite( id ) && id > 0;
+	const inputsValid = idValid && DID_RE.test( did ) && RKEY_RE.test( rkey );
+
+	if ( ! inputsValid ) {
+		page.redirect( idValid ? `/reader/atmosphere/${ id }` : '/reader/atmosphere' );
+		return;
+	}
+
+	context.primary = (
+		<AsyncLoad
+			key="reader-atmosphere-thread"
+			require={ () =>
+				import(
+					/* webpackChunkName: "async-load-calypso-reader-atmosphere-thread-view" */
+					'calypso/reader/atmosphere/atmosphere-thread-view'
+				)
+			}
+			placeholder={ null }
+			connectionId={ id }
+			did={ did }
+			rkey={ rkey }
 		/>
 	);
 	next();
