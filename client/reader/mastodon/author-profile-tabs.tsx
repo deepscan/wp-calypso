@@ -3,15 +3,15 @@ import { useMemo } from 'react';
 import { SocialAuthorProfileTabs, useTabSlug, type TabSpec } from 'calypso/reader/social';
 import { useDispatch } from 'calypso/state';
 import { recordReaderTracksEvent } from 'calypso/state/reader/analytics/actions';
-import type { AtmosphereAuthorFeedFilter } from '@automattic/api-core';
+import type { MastodonAuthorFeedFilter } from '@automattic/api-core';
 
-const SLUG_TO_FILTER: Record< string, AtmosphereAuthorFeedFilter > = {
+const SLUG_TO_FILTER: Record< string, MastodonAuthorFeedFilter > = {
 	posts: 'posts_no_replies',
 	replies: 'posts_with_replies',
 	media: 'posts_with_media',
 };
 
-const FILTER_TO_SLUG: Partial< Record< AtmosphereAuthorFeedFilter, string > > = {
+const FILTER_TO_SLUG: Record< MastodonAuthorFeedFilter, string > = {
 	posts_no_replies: 'posts',
 	posts_with_replies: 'replies',
 	posts_with_media: 'media',
@@ -22,10 +22,10 @@ const DEFAULT_SLUG = 'posts';
 
 /**
  * Reads `?tab=` from the current location and returns the corresponding
- * backend filter. The shared `useTabSlug` hook owns URL parsing and the
- * malformed-slug rewrite; this wrapper maps slug → atmosphere enum.
+ * Mastodon filter. The shared `useTabSlug` hook owns URL parsing and the
+ * malformed-slug rewrite.
  */
-export function useAuthorProfileFilter(): AtmosphereAuthorFeedFilter {
+export function useMastodonAuthorFeedFilter(): MastodonAuthorFeedFilter {
 	const { slug } = useTabSlug( {
 		allowedSlugs: ALLOWED_SLUGS,
 		defaultSlug: DEFAULT_SLUG,
@@ -33,26 +33,29 @@ export function useAuthorProfileFilter(): AtmosphereAuthorFeedFilter {
 	return SLUG_TO_FILTER[ slug ] ?? SLUG_TO_FILTER[ DEFAULT_SLUG ];
 }
 
-interface AuthorProfileTabsProps {
+interface MastodonAuthorProfileTabsProps {
 	connectionId: number;
 	actor: string;
-	activeFilter: AtmosphereAuthorFeedFilter;
+	activeFilter: MastodonAuthorFeedFilter;
 }
 
 function buildPath( connectionId: number, actor: string, slug: string ): string {
-	const base = `/reader/atmosphere/${ connectionId }/profile/${ encodeURIComponent( actor ) }`;
+	const base = `/reader/mastodon/${ connectionId }/profile/${ encodeURIComponent( actor ) }`;
 	if ( typeof window === 'undefined' ) {
 		return `${ base }?tab=${ slug }`;
 	}
-	// Preserve any other query params and the fragment (e.g. ?from=timeline,
-	// or #scroll-anchor) the user may have on the URL when switching tabs.
+	// Preserve any other query params and the fragment when switching tabs.
 	const params = new URLSearchParams( window.location.search );
 	params.set( 'tab', slug );
 	const hash = window.location.hash;
 	return `${ base }?${ params.toString() }${ hash }`;
 }
 
-export function AuthorProfileTabs( { connectionId, actor, activeFilter }: AuthorProfileTabsProps ) {
+export function MastodonAuthorProfileTabs( {
+	connectionId,
+	actor,
+	activeFilter,
+}: MastodonAuthorProfileTabsProps ) {
 	const translate = useTranslate();
 	const dispatch = useDispatch();
 
@@ -77,16 +80,16 @@ export function AuthorProfileTabs( { connectionId, actor, activeFilter }: Author
 		[ connectionId, actor, translate ]
 	);
 
-	const activeSlug = FILTER_TO_SLUG[ activeFilter ] ?? DEFAULT_SLUG;
+	const activeSlug = FILTER_TO_SLUG[ activeFilter ];
 
 	return (
 		<SocialAuthorProfileTabs
-			className="atmosphere-author-profile-tabs"
+			className="mastodon-author-profile-tabs"
 			tabs={ tabs }
 			activeSlug={ activeSlug }
 			onTabClick={ ( toSlug, fromSlug ) => {
 				dispatch(
-					recordReaderTracksEvent( 'calypso_reader_atmosphere_profile_filter_changed', {
+					recordReaderTracksEvent( 'calypso_reader_mastodon_profile_filter_changed', {
 						connection_id: connectionId,
 						actor,
 						from_filter: SLUG_TO_FILTER[ fromSlug ] ?? activeFilter,
