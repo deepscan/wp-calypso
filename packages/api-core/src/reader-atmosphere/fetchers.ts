@@ -7,6 +7,8 @@ import type {
 	AtmosphereConnectionDetails,
 	AtmosphereConnectionsResponse,
 	AtmosphereCreateConnectionResponse,
+	AtmosphereCreateFollowResponse,
+	AtmosphereScopedProfile,
 	AtmosphereTagFeedPage,
 	AtmosphereThreadResponse,
 	AtmosphereTimelinePage,
@@ -162,6 +164,83 @@ export async function getAuthorFeed(
 			},
 			query
 		) ) as AtmosphereAuthorFeedPage;
+	} catch ( raw ) {
+		throw classifyAtmosphereError( raw );
+	}
+}
+
+export interface GetScopedProfileParams {
+	connectionId: number;
+	actor: string;
+}
+
+/**
+ * Authed companion to `getAuthorProfile`. Adds the caller-relative
+ * `viewer` subtree (see `AtmosphereProfileViewer`).
+ */
+export async function getScopedProfile(
+	params: GetScopedProfileParams
+): Promise< AtmosphereScopedProfile > {
+	const { connectionId, actor } = params;
+	try {
+		return ( await wpcom.req.get( {
+			path: `/reader/atmosphere/connections/${ connectionId }/profile/${ encodeURIComponent(
+				actor
+			) }`,
+			apiNamespace: NAMESPACE,
+		} ) ) as AtmosphereScopedProfile;
+	} catch ( raw ) {
+		throw classifyAtmosphereError( raw );
+	}
+}
+
+export interface CreateFollowParams {
+	connectionId: number;
+	subject_did: string;
+}
+
+/**
+ * Creates an `app.bsky.graph.follow` record on the caller's PDS so the
+ * connection identified by `connectionId` follows the actor identified
+ * by `subject_did`. The rkey-rationale lives on `AtmosphereFollowRecord`.
+ */
+export async function createFollow(
+	params: CreateFollowParams
+): Promise< AtmosphereCreateFollowResponse > {
+	const { connectionId, subject_did } = params;
+	try {
+		return ( await wpcom.req.post( {
+			path: `/reader/atmosphere/connections/${ connectionId }/follows`,
+			apiNamespace: NAMESPACE,
+			body: { subject_did },
+		} ) ) as AtmosphereCreateFollowResponse;
+	} catch ( raw ) {
+		throw classifyAtmosphereError( raw );
+	}
+}
+
+export interface DeleteFollowParams {
+	connectionId: number;
+	rkey: string;
+}
+
+/**
+ * Drops an `app.bsky.graph.follow` record from the caller's PDS. The
+ * matching DELETE is dispatched as `wpcom.req.post({ method: 'DELETE' })`
+ * because the wpcom client routes by `method`. The backend mirrors
+ * upstream `deleteRecord` semantics for missing rkeys, but this wrapper
+ * still classifies any non-2xx response as an `AtmosphereError`.
+ */
+export async function deleteFollow( params: DeleteFollowParams ): Promise< void > {
+	const { connectionId, rkey } = params;
+	try {
+		await wpcom.req.post( {
+			path: `/reader/atmosphere/connections/${ connectionId }/follows/${ encodeURIComponent(
+				rkey
+			) }`,
+			apiNamespace: NAMESPACE,
+			method: 'DELETE',
+		} );
 	} catch ( raw ) {
 		throw classifyAtmosphereError( raw );
 	}

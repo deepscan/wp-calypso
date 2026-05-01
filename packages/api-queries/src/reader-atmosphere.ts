@@ -1,12 +1,15 @@
 import {
 	createConnection,
+	createFollow,
 	createLike,
+	deleteFollow,
 	deleteLike,
 	getAtmosphereTagFeed,
 	getAuthorFeed,
 	getAuthorProfile,
 	getConnection,
 	getConnections,
+	getScopedProfile,
 	getThread,
 	getTimeline,
 	PENDING_LIKE_URI,
@@ -15,6 +18,7 @@ import {
 } from '@automattic/api-core';
 import {
 	infiniteQueryOptions,
+	mutationOptions,
 	queryOptions,
 	useInfiniteQuery,
 	useMutation,
@@ -31,8 +35,10 @@ import type {
 	AtmosphereConnectionDetails,
 	AtmosphereConnectionsResponse,
 	AtmosphereCreateConnectionResponse,
+	AtmosphereCreateFollowResponse,
 	AtmosphereError,
 	AtmosphereFeedItem,
+	AtmosphereScopedProfile,
 	AtmosphereTagFeedPage,
 	AtmosphereThreadResponse,
 	AtmosphereThreadNode,
@@ -170,6 +176,33 @@ export function useAuthorProfileQuery( { actor }: UseAuthorProfileQueryParams ) 
 	return useQuery( profileQueryOptions( actor ) );
 }
 
+export interface AtmosphereScopedProfileQueryParams {
+	connectionId: number;
+	actor: string;
+}
+
+export const atmosphereScopedProfileQuery = ( params: AtmosphereScopedProfileQueryParams ) =>
+	queryOptions< AtmosphereScopedProfile, AtmosphereError >( {
+		queryKey: readerAtmosphereKeys.scopedProfile( params.connectionId, params.actor ),
+		queryFn: () => getScopedProfile( params ),
+		enabled: params.actor.length > 0,
+		staleTime: 30_000,
+		gcTime: 5 * 60_000,
+		// Match threadQueryOptions' policy: bail immediately on terminal errors
+		// (auth, 404, rate-limit, …) so the EmptyContent surfaces fast, but
+		// retry transient failures twice before showing the error UI.
+		retry: ( failureCount, error ) => {
+			if ( isTerminalError( error ) ) {
+				return false;
+			}
+			return failureCount < 2;
+		},
+	} );
+
+export function useAtmosphereScopedProfileQuery( params: AtmosphereScopedProfileQueryParams ) {
+	return useQuery( atmosphereScopedProfileQuery( params ) );
+}
+
 export const authorFeedInfiniteQuery = ( actor: string, filter?: AtmosphereAuthorFeedFilter ) => {
 	// Collapse the default filter to undefined so the cache key and request
 	// URL stay clean for the default tab. Callers can pass 'posts_no_replies'
@@ -203,6 +236,134 @@ export interface UseAuthorFeedInfiniteQueryParams {
 export function useAuthorFeedInfiniteQuery( { actor, filter }: UseAuthorFeedInfiniteQueryParams ) {
 	return useInfiniteQuery( authorFeedInfiniteQuery( actor, filter ) );
 }
+
+export interface FollowAtmosphereActorVars {
+	connectionId: number;
+	actor: string;
+	subjectDid: string;
+}
+
+export interface FollowAtmosphereMutationContext {
+	previous: AtmosphereScopedProfile | undefined;
+}
+
+const scopedProfileKey = ( vars: { connectionId: number; actor: string } ) =>
+	atmosphereScopedProfileQuery( {
+		connectionId: vars.connectionId,
+		actor: vars.actor,
+	} ).queryKey;
+
+/**
+ * Mutation factory for creating an `app.bsky.graph.follow` record.
+ * Optimistically marks the cached scoped-profile entry as following
+ * (with placeholder rkey `'pending'`) in `onMutate`; writes the real
+ * URI / rkey returned by the server in `onSuccess`; rolls back to the
+ * prior cached value in `onError`. The `'pending'` placeholder is
+ * never observed by `handleUnfollow` because <FollowButton> is
+ * disabled while `followMut.isPending` is true.
+ *
+ * Accepts the consumer's QueryClient because Calypso boots its own
+ * separate from the singleton in `@automattic/api-queries`. See
+ * `client/reader/AGENTS.md` for the rationale.
+ */
+export const followAtmosphereActorMutation = ( queryClient: QueryClient ) =>
+	mutationOptions<
+		AtmosphereCreateFollowResponse,
+		AtmosphereError,
+		FollowAtmosphereActorVars,
+		FollowAtmosphereMutationContext
+	>( {
+		mutationFn: ( vars ) =>
+			createFollow( { connectionId: vars.connectionId, subject_did: vars.subjectDid } ),
+		onMutate: async ( vars ) => {
+			const key = scopedProfileKey( vars );
+			await queryClient.cancelQueries( { queryKey: key } );
+			const previous = queryClient.getQueryData< AtmosphereScopedProfile >( key );
+			queryClient.setQueryData< AtmosphereScopedProfile >( key, ( old ) =>
+				old
+					? {
+							...old,
+							viewer: {
+								...old.viewer,
+								following: 'pending',
+								following_rkey: 'pending',
+							},
+					  }
+					: old
+			);
+			return { previous };
+		},
+		onError: ( _err, vars, context ) => {
+			if ( context?.previous ) {
+				queryClient.setQueryData( scopedProfileKey( vars ), context.previous );
+			}
+		},
+		onSuccess: ( data, vars ) => {
+			queryClient.setQueryData< AtmosphereScopedProfile >( scopedProfileKey( vars ), ( old ) =>
+				old
+					? {
+							...old,
+							viewer: {
+								...old.viewer,
+								following: data.follow.uri,
+								following_rkey: data.follow.rkey,
+							},
+					  }
+					: old
+			);
+		},
+	} );
+
+export interface UnfollowAtmosphereActorVars {
+	connectionId: number;
+	actor: string;
+	rkey: string;
+}
+
+/**
+ * Mutation factory for deleting an `app.bsky.graph.follow` record.
+ * Optimistically clears the cached scoped-profile entry's
+ * `viewer.following` / `viewer.following_rkey` to null in
+ * `onMutate`; rolls back on error. There is no `onSuccess` cache
+ * write because the optimistic state is already the success state
+ * — a successful DELETE returns 204 with no body.
+ *
+ * Accepts the consumer's QueryClient because Calypso boots its own
+ * separate from the singleton in `@automattic/api-queries`. See
+ * `client/reader/AGENTS.md` for the rationale.
+ */
+export const unfollowAtmosphereActorMutation = ( queryClient: QueryClient ) =>
+	mutationOptions<
+		void,
+		AtmosphereError,
+		UnfollowAtmosphereActorVars,
+		FollowAtmosphereMutationContext
+	>( {
+		mutationFn: ( vars ) => deleteFollow( { connectionId: vars.connectionId, rkey: vars.rkey } ),
+		onMutate: async ( vars ) => {
+			const key = scopedProfileKey( vars );
+			await queryClient.cancelQueries( { queryKey: key } );
+			const previous = queryClient.getQueryData< AtmosphereScopedProfile >( key );
+			queryClient.setQueryData< AtmosphereScopedProfile >( key, ( old ) =>
+				old
+					? {
+							...old,
+							viewer: {
+								...old.viewer,
+								following: null,
+								following_rkey: null,
+							},
+					  }
+					: old
+			);
+			return { previous };
+		},
+		onError: ( _err, vars, context ) => {
+			if ( context?.previous ) {
+				queryClient.setQueryData( scopedProfileKey( vars ), context.previous );
+			}
+		},
+	} );
 
 interface OptimisticContext {
 	snapshots: Array< {
