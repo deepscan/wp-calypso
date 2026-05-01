@@ -10,6 +10,9 @@ import type {
 	AtmosphereTagFeedPage,
 	AtmosphereThreadResponse,
 	AtmosphereTimelinePage,
+	CreateLikeParams,
+	CreateLikeResult,
+	DeleteLikeParams,
 } from './types';
 
 const NAMESPACE = 'wpcom/v2';
@@ -159,6 +162,34 @@ export async function getAuthorFeed(
 			},
 			query
 		) ) as AtmosphereAuthorFeedPage;
+	} catch ( raw ) {
+		throw classifyAtmosphereError( raw );
+	}
+}
+
+export async function createLike( params: CreateLikeParams ): Promise< CreateLikeResult > {
+	try {
+		const res = ( await wpcom.req.post( {
+			path: `/reader/atmosphere/connections/${ params.connectionId }/likes`,
+			apiNamespace: NAMESPACE,
+			body: {
+				post_uri: params.postUri,
+				post_cid: params.postCid,
+			},
+		} ) ) as { like: CreateLikeResult };
+		return res.like;
+	} catch ( raw ) {
+		throw classifyAtmosphereError( raw );
+	}
+}
+
+export async function deleteLike( params: DeleteLikeParams ): Promise< void > {
+	try {
+		await wpcom.req.post( {
+			method: 'DELETE',
+			path: `/reader/atmosphere/connections/${ params.connectionId }/likes/${ params.rkey }`,
+			apiNamespace: NAMESPACE,
+		} );
 	} catch ( raw ) {
 		throw classifyAtmosphereError( raw );
 	}

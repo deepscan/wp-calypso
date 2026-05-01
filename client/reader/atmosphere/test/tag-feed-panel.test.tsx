@@ -6,6 +6,7 @@ import { QueryClient } from '@tanstack/react-query';
 import { screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import nock from 'nock';
+import { mockAllIsIntersecting } from 'react-intersection-observer/test-utils';
 import * as analytics from 'calypso/state/reader/analytics/actions';
 import { renderWithProvider } from 'calypso/test-helpers/testing-library';
 import { TagFeedPanel } from '../tag-feed-panel';
@@ -26,6 +27,28 @@ const connection: AtmosphereConnection = {
 
 const BASE = 'https://public-api.wordpress.com';
 const PATH = '/wpcom/v2/reader/atmosphere/connections/42/tag/rust/feed';
+const feedItem = {
+	uri: 'at://did:plc:abc/app.bsky.feed.post/aaaaaaaaaaaaa',
+	cid: 'cid',
+	author: {
+		did: 'did:plc:abc',
+		handle: 'alice.bsky.social',
+		display_name: 'Alice',
+		avatar: null,
+	},
+	created_at: '2024-01-01T00:00:00.000Z',
+	indexed_at: '2024-01-01T00:00:00.000Z',
+	text: 'hello tag',
+	html: '<p>hello tag</p>',
+	lang: [ 'en' ],
+	reply_parent: null,
+	reply_root: null,
+	reason: null,
+	embed: null,
+	counts: { replies: 0, reposts: 0, likes: 0, quotes: 0 },
+	viewer: { like: null, repost: null },
+	bluesky_url: 'https://bsky.app/profile/alice.bsky.social/post/aaaaaaaaaaaaa',
+};
 
 function makeQueryClient() {
 	return new QueryClient( { defaultOptions: { queries: { retry: false } } } );
@@ -65,6 +88,20 @@ describe( 'TagFeedPanel', () => {
 		} );
 
 		await waitFor( () => expect( screen.getByText( /1,?234 posts/ ) ).toBeVisible() );
+	} );
+
+	it( 'renders like buttons for feed posts', async () => {
+		nock( BASE )
+			.get( PATH )
+			.reply( 200, { items: [ feedItem ], cursor: null, tag: { name: 'rust' } } );
+
+		renderWithProvider( <TagFeedPanel connection={ connection } hashtag="rust" />, {
+			queryClient: makeQueryClient(),
+		} );
+		mockAllIsIntersecting( false );
+
+		expect( await screen.findByText( 'hello tag' ) ).toBeVisible();
+		expect( screen.getByRole( 'button', { name: /like, 0 likes/i } ) ).toBeVisible();
 	} );
 
 	it( 'omits the count line when count is undefined', async () => {

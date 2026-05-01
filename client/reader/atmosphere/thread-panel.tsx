@@ -150,6 +150,7 @@ export function ThreadPanel( { connection, did, rkey }: ThreadPanelProps ) {
 					error: error ?? null,
 					handleRetry,
 					targetUri,
+					connectionId: connection.id,
 				} ) }
 			</SocialAnalyticsProvider>
 		</>
@@ -165,6 +166,7 @@ function renderBody( {
 	error,
 	handleRetry,
 	targetUri,
+	connectionId,
 }: {
 	translate: ReturnType< typeof useTranslate >;
 	data: { thread: AtmosphereThreadNode } | undefined;
@@ -174,6 +176,7 @@ function renderBody( {
 	error: AtmosphereError | null;
 	handleRetry: () => void;
 	targetUri: string;
+	connectionId: number;
 } ) {
 	if ( isPending ) {
 		return <ThreadTreeSkeleton />;
@@ -190,7 +193,7 @@ function renderBody( {
 	if ( data.thread.type === 'blocked' ) {
 		return <ThreadTombstone kind="blocked" />;
 	}
-	return <ThreadTree root={ data.thread } targetUri={ targetUri } />;
+	return <ThreadTree root={ data.thread } targetUri={ targetUri } connectionId={ connectionId } />;
 }
 
 function renderError( {
