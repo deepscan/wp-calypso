@@ -11,6 +11,7 @@ import {
 	mapAtmosphereFeedItemToSocialPost,
 } from 'calypso/reader/social';
 import { recordReaderTracksEvent } from 'calypso/state/reader/analytics/actions';
+import { useOptionalComposer } from './composer';
 import { projectAtmosphereError } from './error-projection';
 import {
 	getProfileUrl as buildProfileUrl,
@@ -107,6 +108,36 @@ export function TimelinePanel( { connection }: TimelinePanelProps ) {
 		[ connection.id ]
 	);
 
+	const composer = useOptionalComposer();
+	const openComposer = composer?.openComposer;
+	const onReplyClick = useMemo( () => {
+		if ( ! openComposer ) {
+			return undefined;
+		}
+		return ( post: SocialPost ) => {
+			if ( ! post.cid ) {
+				return;
+			}
+			const parent = { uri: post.uri, cid: post.cid };
+			// `reply_root` is null when the post itself is the root of its
+			// thread; in that case the post is also its own root. When set,
+			// prefer the root's own `cid` (preserved through the atmosphere
+			// mapper) so reply-to-reply submissions round-trip the actual
+			// root strong-ref to AT-Proto's `createRecord`. Fall back to the
+			// parent's `cid` for protocols that don't carry CIDs natively
+			// (Mastodon) or older backend payloads where the field is absent.
+			const root = post.reply_root
+				? { uri: post.reply_root.uri, cid: post.reply_root.cid ?? post.cid }
+				: parent;
+			openComposer( {
+				kind: 'reply',
+				root,
+				parent,
+				previewPost: post,
+			} );
+		};
+	}, [ openComposer ] );
+
 	const renderItem = useCallback(
 		( post: SocialPost ) => (
 			<SocialPostCard post={ post } connectionId={ connection.id } variant="default" />
@@ -123,8 +154,9 @@ export function TimelinePanel( { connection }: TimelinePanelProps ) {
 			getThreadUrl,
 			getProfileUrl,
 			getTagUrl,
+			onReplyClick,
 		} ),
-		[ connection.id, onClickAnalytics, getThreadUrl, getProfileUrl, getTagUrl ]
+		[ connection.id, onClickAnalytics, getThreadUrl, getProfileUrl, getTagUrl, onReplyClick ]
 	);
 
 	return (

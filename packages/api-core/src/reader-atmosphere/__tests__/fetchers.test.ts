@@ -3,6 +3,7 @@ import {
 	createConnection,
 	createFollow,
 	createLike,
+	createPost,
 	createRepost,
 	deleteFollow,
 	deleteLike,
@@ -899,6 +900,67 @@ describe( 'atmosphere fetchers', () => {
 			await expect(
 				getAtmosphereTagFeed( { connectionId: 7, hashtag: 'rust' } )
 			).rejects.toMatchObject( { kind: 'rate_limited' } );
+		} );
+	} );
+
+	describe( 'createPost', () => {
+		const connectionId = 42;
+
+		afterEach( () => nock.cleanAll() );
+
+		it( 'POSTs the request body and returns the parsed result', async () => {
+			nock( BASE )
+				.post( '/wpcom/v2/reader/atmosphere/connections/42/posts', {
+					text: 'hi there',
+					reply: {
+						root: { uri: 'at://r', cid: 'rcid' },
+						parent: { uri: 'at://p', cid: 'pcid' },
+					},
+				} )
+				.reply( 200, {
+					post: { uri: 'at://new', cid: 'newcid', rkey: 'abc' },
+				} );
+
+			const result = await createPost( {
+				connectionId,
+				text: 'hi there',
+				reply: {
+					root: { uri: 'at://r', cid: 'rcid' },
+					parent: { uri: 'at://p', cid: 'pcid' },
+				},
+			} );
+
+			expect( result ).toEqual( { uri: 'at://new', cid: 'newcid', rkey: 'abc' } );
+		} );
+
+		it( 'omits reply when posting standalone', async () => {
+			const scope = nock( BASE )
+				.post( '/wpcom/v2/reader/atmosphere/connections/42/posts', ( body ) => {
+					return body.text === 'standalone' && ! body.reply && ! body.quote;
+				} )
+				.reply( 200, { post: { uri: 'at://x', cid: 'xc', rkey: 'r' } } );
+
+			await createPost( { connectionId, text: 'standalone' } );
+			expect( scope.isDone() ).toBe( true );
+		} );
+
+		it.each( [
+			[ 400, 'atmosphere_bad_request', 'bad_request' ],
+			[ 400, 'atmosphere_text_too_long', 'text_too_long' ],
+			[ 401, 'atmosphere_auth_required', 'auth_required' ],
+			[ 401, 'atmosphere_unauthenticated', 'auth_required' ],
+			[ 403, 'atmosphere_reply_disabled', 'reply_disabled' ],
+			[ 403, 'atmosphere_quote_disabled', 'quote_disabled' ],
+			[ 404, 'atmosphere_not_found', 'not_found' ],
+			[ 404, 'atmosphere_target_unavailable', 'target_unavailable' ],
+			[ 429, 'atmosphere_rate_limited', 'rate_limited' ],
+			[ 502, 'atmosphere_upstream_unavailable', 'upstream_unavailable' ],
+		] )( 'classifies HTTP %i %s as kind %s', async ( status, error, kind ) => {
+			nock( BASE )
+				.post( '/wpcom/v2/reader/atmosphere/connections/42/posts' )
+				.reply( status as number, { error } );
+
+			await expect( createPost( { connectionId, text: 'x' } ) ).rejects.toMatchObject( { kind } );
 		} );
 	} );
 } );

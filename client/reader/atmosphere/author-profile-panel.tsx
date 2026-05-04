@@ -25,6 +25,7 @@ import {
 import { errorNotice, removeNotice } from 'calypso/state/notices/actions';
 import { recordReaderTracksEvent } from 'calypso/state/reader/analytics/actions';
 import { AuthorProfileTabs, useAuthorProfileFilter } from './author-profile-tabs';
+import { useOptionalComposer } from './composer';
 import { projectAtmosphereError } from './error-projection';
 import { errorMessage } from './profile-errors';
 import { getProfileUrl, getTagFeedUrl, getThreadUrl, getTimelineUrl } from './route';
@@ -298,6 +299,33 @@ export function AuthorProfilePanel( { connection, actor }: AuthorProfilePanelPro
 		  ]
 		: [];
 
+	const composer = useOptionalComposer();
+	const openComposer = composer?.openComposer;
+	const onReplyClick = useMemo( () => {
+		if ( ! openComposer ) {
+			return undefined;
+		}
+		return ( post: SocialPost ) => {
+			if ( ! post.cid ) {
+				return;
+			}
+			const parent = { uri: post.uri, cid: post.cid };
+			// See timeline-panel.tsx for the rationale. Prefer the root's
+			// own `cid` from `reply_root` so reply-to-reply submissions send
+			// the real root strong-ref; fall back to the parent's `cid` for
+			// protocols without CIDs or older backend payloads.
+			const root = post.reply_root
+				? { uri: post.reply_root.uri, cid: post.reply_root.cid ?? post.cid }
+				: parent;
+			openComposer( {
+				kind: 'reply',
+				root,
+				parent,
+				previewPost: post,
+			} );
+		};
+	}, [ openComposer ] );
+
 	const analyticsValue = useMemo(
 		() => ( {
 			source: 'atmosphere' as const,
@@ -306,8 +334,9 @@ export function AuthorProfilePanel( { connection, actor }: AuthorProfilePanelPro
 			getThreadUrl: buildThreadUrl,
 			getProfileUrl: buildProfileUrl,
 			getTagUrl: buildTagUrl,
+			onReplyClick,
 		} ),
-		[ connection.id, onClickAnalytics, buildThreadUrl, buildProfileUrl, buildTagUrl ]
+		[ connection.id, onClickAnalytics, buildThreadUrl, buildProfileUrl, buildTagUrl, onReplyClick ]
 	);
 
 	const isOwnProfile = profile.data?.did === connection.did;

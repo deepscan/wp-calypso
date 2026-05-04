@@ -23,7 +23,7 @@ export function PostCardCounts( { post, connectionId }: PostCardCountsProps ) {
 	const postUri = post.uri;
 	const inAppUrl = analytics?.getThreadUrl?.( postUri ) ?? null;
 
-	const fireRepliesClicked = () => {
+	const fireRepliesClicked = ( destination: 'in_app_thread' | 'bsky_app' | 'composer' ) => {
 		if ( ! analytics ) {
 			return;
 		}
@@ -31,7 +31,7 @@ export function PostCardCounts( { post, connectionId }: PostCardCountsProps ) {
 			connection_id: analytics.connectionId,
 			post_uri: postUri,
 			replies_count: counts.replies,
-			destination: inAppUrl ? 'in_app_thread' : 'bsky_app',
+			destination,
 		} );
 	};
 
@@ -43,6 +43,48 @@ export function PostCardCounts( { post, connectionId }: PostCardCountsProps ) {
 		</>
 	);
 
+	const renderRepliesNode = () => {
+		// Mirror the like-button gating: only render the interactive
+		// reply button when we have both an `onReplyClick` handler AND
+		// a strong-ref `cid` to address the post (atmosphere posts
+		// without `cid` would silently no-op the click and emit a
+		// phantom `replies_count_clicked / destination=composer` Tracks
+		// event). Fall through to the in-app/external thread link or
+		// the static count otherwise.
+		if ( analytics?.onReplyClick && post.cid ) {
+			const onReplyClick = analytics.onReplyClick;
+			return (
+				<button
+					type="button"
+					className="social-post-card-counts__reply-button"
+					onClick={ () => {
+						onReplyClick( post );
+						fireRepliesClicked( 'composer' );
+					} }
+					aria-label={ translate( 'Reply, %(count)d reply', 'Reply, %(count)d replies', {
+						count: counts.replies,
+						args: { count: counts.replies },
+						textOnly: true,
+					} ) }
+				>
+					{ repliesContent }
+				</button>
+			);
+		}
+		if ( inAppUrl ) {
+			return (
+				<a
+					className="social-post-card-counts__link"
+					href={ inAppUrl }
+					onClick={ () => fireRepliesClicked( 'in_app_thread' ) }
+				>
+					{ repliesContent }
+				</a>
+			);
+		}
+		return <span>{ repliesContent }</span>;
+	};
+
 	return (
 		<HStack
 			alignment="center"
@@ -50,17 +92,7 @@ export function PostCardCounts( { post, connectionId }: PostCardCountsProps ) {
 			justify="flex-start"
 			className="social-post-card-counts"
 		>
-			{ inAppUrl ? (
-				<a
-					className="social-post-card-counts__link"
-					href={ inAppUrl }
-					onClick={ fireRepliesClicked }
-				>
-					{ repliesContent }
-				</a>
-			) : (
-				<span>{ repliesContent }</span>
-			) }
+			{ renderRepliesNode() }
 			{ connectionId && post.cid ? (
 				<RepostButton
 					post={ {

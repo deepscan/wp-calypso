@@ -1,5 +1,6 @@
 import {
 	PENDING_LIKE_URI,
+	PENDING_REPLY_URI,
 	PENDING_REPOST_URI,
 	readerAtmosphereKeys,
 	type AtmosphereFeedItem,
@@ -20,6 +21,7 @@ import { act, renderHook, waitFor } from '@testing-library/react';
 import nock from 'nock';
 import {
 	atmosphereScopedProfileQuery,
+	createPostMutation,
 	followAtmosphereActorMutation,
 	unfollowAtmosphereActorMutation,
 	useAuthorFeedInfiniteQuery,
@@ -1348,6 +1350,413 @@ describe( 'reader-atmosphere hooks', () => {
 
 				expect( getTimelineCache( client ) ).toEqual( snapshot );
 			} );
+		} );
+	} );
+
+	describe( 'createPostMutation — reply mode', () => {
+		const connectionId = 42;
+		const root = { uri: 'at://did:plc:r/app.bsky.feed.post/root', cid: 'rcid' };
+		const parent = { uri: 'at://did:plc:p/app.bsky.feed.post/parent', cid: 'pcid' };
+
+		afterEach( () => nock.cleanAll() );
+
+		function seedThreadWithParent( client: QueryClient ): AtmosphereThreadResponse {
+			const initial: AtmosphereThreadResponse = {
+				thread: {
+					type: 'post',
+					post: makeFeedItem( {
+						uri: root.uri,
+						cid: root.cid,
+						counts: { replies: 1, reposts: 0, likes: 0, quotes: 0 },
+					} ),
+					parent: null,
+					replies: [
+						{
+							type: 'post',
+							post: makeFeedItem( {
+								uri: parent.uri,
+								cid: parent.cid,
+								counts: { replies: 0, reposts: 0, likes: 0, quotes: 0 },
+							} ),
+							parent: null,
+							replies: [],
+						},
+					],
+				},
+			};
+			client.setQueryData( readerAtmosphereKeys.thread( root.uri ), initial );
+			return initial;
+		}
+
+		it( 'POSTs the body and returns the new post reference', async () => {
+			nock( BASE )
+				.post( `/wpcom/v2/reader/atmosphere/connections/${ connectionId }/posts`, {
+					text: 'hello',
+					reply: { root, parent },
+				} )
+				.reply( 200, { post: { uri: 'at://new', cid: 'newcid', rkey: 'abc' } } );
+
+			const client = new QueryClient( { defaultOptions: { mutations: { retry: false } } } );
+			const { result } = renderHook( () => useMutation( createPostMutation( client ) ), {
+				wrapper: makeWrapper( client ),
+			} );
+
+			await act( async () => {
+				await result.current.mutateAsync( {
+					connectionId,
+					text: 'hello',
+					reply: { root, parent },
+				} );
+			} );
+
+			expect( result.current.data ).toEqual( { uri: 'at://new', cid: 'newcid', rkey: 'abc' } );
+		} );
+
+		it( 'optimistically inserts a placeholder reply under the parent in the thread query', async () => {
+			const client = new QueryClient( { defaultOptions: { mutations: { retry: false } } } );
+			seedThreadWithParent( client );
+
+			nock( BASE )
+				.post( `/wpcom/v2/reader/atmosphere/connections/${ connectionId }/posts` )
+				.delay( 100 )
+				.reply( 200, { post: { uri: 'at://new', cid: 'newcid', rkey: 'abc' } } );
+
+			const { result } = renderHook( () => useMutation( createPostMutation( client ) ), {
+				wrapper: makeWrapper( client ),
+			} );
+
+			let promise: Promise< unknown > = Promise.resolve();
+			await act( async () => {
+				promise = result.current.mutateAsync( {
+					connectionId,
+					text: 'reply text',
+					reply: { root, parent },
+				} );
+				await Promise.resolve();
+			} );
+
+			await waitFor( () => {
+				const thread = client.getQueryData< AtmosphereThreadResponse >(
+					readerAtmosphereKeys.thread( root.uri )
+				);
+				expect( thread?.thread.type ).toBe( 'post' );
+				if ( thread?.thread.type !== 'post' ) {
+					throw new Error( 'expected root to be a post node' );
+				}
+				expect( thread.thread.replies ).toHaveLength( 1 );
+				const parentNode = thread.thread.replies[ 0 ];
+				expect( parentNode.type ).toBe( 'post' );
+				if ( parentNode.type !== 'post' ) {
+					throw new Error( 'expected parent to be a post node' );
+				}
+				expect( parentNode.replies ).toHaveLength( 1 );
+				const placeholder = parentNode.replies[ 0 ];
+				expect( placeholder.type ).toBe( 'post' );
+				if ( placeholder.type !== 'post' ) {
+					throw new Error( 'expected placeholder to be a post node' );
+				}
+				// Each in-flight reply is stamped with a unique
+				// `${PENDING_REPLY_URI}#<n>` suffix so concurrent replies
+				// can't collide on rewrite. Match on the prefix.
+				expect( placeholder.post.uri.startsWith( PENDING_REPLY_URI ) ).toBe( true );
+				expect( placeholder.post.text ).toBe( 'reply text' );
+			} );
+
+			await promise;
+		} );
+
+		it( 'hydrates the placeholder author from the cached connection', async () => {
+			const client = new QueryClient( { defaultOptions: { mutations: { retry: false } } } );
+			seedThreadWithParent( client );
+			client.setQueryData( readerAtmosphereKeys.connection( connectionId ), {
+				did: 'did:plc:me',
+				handle: 'me.bsky.social',
+				display_name: 'Me',
+				description: '',
+				avatar: 'https://cdn.bsky.app/me/avatar.jpg',
+				banner: null,
+				counts: { followers: 0, follows: 0, posts: 0 },
+			} );
+
+			nock( BASE )
+				.post( `/wpcom/v2/reader/atmosphere/connections/${ connectionId }/posts` )
+				.delay( 50 )
+				.reply( 200, { post: { uri: 'at://new', cid: 'newcid', rkey: 'abc' } } );
+
+			const { result } = renderHook( () => useMutation( createPostMutation( client ) ), {
+				wrapper: makeWrapper( client ),
+			} );
+
+			let promise: Promise< unknown > = Promise.resolve();
+			await act( async () => {
+				promise = result.current.mutateAsync( {
+					connectionId,
+					text: 'reply text',
+					reply: { root, parent },
+				} );
+				await Promise.resolve();
+			} );
+
+			// Optimistic placeholder carries the connection's author.
+			await waitFor( () => {
+				const thread = client.getQueryData< AtmosphereThreadResponse >(
+					readerAtmosphereKeys.thread( root.uri )
+				);
+				if ( thread?.thread.type !== 'post' ) {
+					throw new Error( 'expected root to be a post node' );
+				}
+				const parentNode = thread.thread.replies[ 0 ];
+				if ( parentNode.type !== 'post' ) {
+					throw new Error( 'expected parent to be a post node' );
+				}
+				const placeholder = parentNode.replies[ 0 ];
+				if ( placeholder.type !== 'post' ) {
+					throw new Error( 'expected placeholder to be a post node' );
+				}
+				expect( placeholder.post.author ).toEqual( {
+					did: 'did:plc:me',
+					handle: 'me.bsky.social',
+					display_name: 'Me',
+					avatar: 'https://cdn.bsky.app/me/avatar.jpg',
+				} );
+			} );
+
+			await promise;
+
+			// After onSuccess the rewrite carries the same author through.
+			const settled = client.getQueryData< AtmosphereThreadResponse >(
+				readerAtmosphereKeys.thread( root.uri )
+			);
+			if ( settled?.thread.type !== 'post' ) {
+				throw new Error( 'expected root to be a post node' );
+			}
+			const settledParent = settled.thread.replies[ 0 ];
+			if ( settledParent.type !== 'post' ) {
+				throw new Error( 'expected parent to be a post node' );
+			}
+			const settledReply = settledParent.replies[ 0 ];
+			if ( settledReply.type !== 'post' ) {
+				throw new Error( 'expected reply to be a post node' );
+			}
+			expect( settledReply.post.uri ).toBe( 'at://new' );
+			expect( settledReply.post.cid ).toBe( 'newcid' );
+			expect( settledReply.post.author ).toEqual( {
+				did: 'did:plc:me',
+				handle: 'me.bsky.social',
+				display_name: 'Me',
+				avatar: 'https://cdn.bsky.app/me/avatar.jpg',
+			} );
+		} );
+
+		it( 'fills the placeholder author on success when the connection cache populates after onMutate', async () => {
+			const client = new QueryClient( { defaultOptions: { mutations: { retry: false } } } );
+			seedThreadWithParent( client );
+
+			nock( BASE )
+				.post( `/wpcom/v2/reader/atmosphere/connections/${ connectionId }/posts` )
+				.delay( 50 )
+				.reply( 200, { post: { uri: 'at://new', cid: 'newcid', rkey: 'abc' } } );
+
+			const { result } = renderHook( () => useMutation( createPostMutation( client ) ), {
+				wrapper: makeWrapper( client ),
+			} );
+
+			let promise: Promise< unknown > = Promise.resolve();
+			await act( async () => {
+				promise = result.current.mutateAsync( {
+					connectionId,
+					text: 'reply text',
+					reply: { root, parent },
+				} );
+				await Promise.resolve();
+			} );
+
+			// Connection cache lands while the request is in flight (e.g. a
+			// deep-link path where the shell hydrates the connection
+			// query after the user has already opened the composer).
+			client.setQueryData( readerAtmosphereKeys.connection( connectionId ), {
+				did: 'did:plc:me',
+				handle: 'me.bsky.social',
+				display_name: 'Me',
+				description: '',
+				avatar: null,
+				banner: null,
+				counts: { followers: 0, follows: 0, posts: 0 },
+			} );
+
+			await promise;
+
+			const settled = client.getQueryData< AtmosphereThreadResponse >(
+				readerAtmosphereKeys.thread( root.uri )
+			);
+			if ( settled?.thread.type !== 'post' ) {
+				throw new Error( 'expected root to be a post node' );
+			}
+			const settledParent = settled.thread.replies[ 0 ];
+			if ( settledParent.type !== 'post' ) {
+				throw new Error( 'expected parent to be a post node' );
+			}
+			const settledReply = settledParent.replies[ 0 ];
+			if ( settledReply.type !== 'post' ) {
+				throw new Error( 'expected reply to be a post node' );
+			}
+			expect( settledReply.post.author ).toEqual( {
+				did: 'did:plc:me',
+				handle: 'me.bsky.social',
+				display_name: 'Me',
+				avatar: null,
+			} );
+		} );
+
+		it( 'restores the snapshot on error', async () => {
+			const client = new QueryClient( { defaultOptions: { mutations: { retry: false } } } );
+			const initial = seedThreadWithParent( client );
+
+			nock( BASE )
+				.post( `/wpcom/v2/reader/atmosphere/connections/${ connectionId }/posts` )
+				.reply( 502, { error: 'atmosphere_upstream_unavailable' } );
+
+			const { result } = renderHook( () => useMutation( createPostMutation( client ) ), {
+				wrapper: makeWrapper( client ),
+			} );
+
+			await act( async () => {
+				try {
+					await result.current.mutateAsync( {
+						connectionId,
+						text: 'reply text',
+						reply: { root, parent },
+					} );
+				} catch {
+					/* expected */
+				}
+			} );
+
+			expect(
+				client.getQueryData< AtmosphereThreadResponse >( readerAtmosphereKeys.thread( root.uri ) )
+			).toEqual( initial );
+		} );
+
+		it( 'increments parent counts.replies in cached timeline pages', async () => {
+			const client = new QueryClient( { defaultOptions: { mutations: { retry: false } } } );
+			const parentItem = makeFeedItem( {
+				uri: parent.uri,
+				cid: parent.cid,
+				counts: { replies: 3, reposts: 0, likes: 0, quotes: 0 },
+			} );
+			const timelineData: InfiniteData< AtmosphereTimelinePage > = {
+				pages: [ { items: [ parentItem ], cursor: null } ],
+				pageParams: [ undefined ],
+			};
+			client.setQueryData( readerAtmosphereKeys.timeline( connectionId ), timelineData );
+
+			nock( BASE )
+				.post( `/wpcom/v2/reader/atmosphere/connections/${ connectionId }/posts` )
+				.reply( 200, { post: { uri: 'at://new', cid: 'newcid', rkey: 'abc' } } );
+
+			const { result } = renderHook( () => useMutation( createPostMutation( client ) ), {
+				wrapper: makeWrapper( client ),
+			} );
+
+			await act( async () => {
+				await result.current.mutateAsync( {
+					connectionId,
+					text: 'reply text',
+					reply: { root, parent },
+				} );
+			} );
+
+			const timeline = client.getQueryData< InfiniteData< AtmosphereTimelinePage > >(
+				readerAtmosphereKeys.timeline( connectionId )
+			);
+			expect( timeline?.pages[ 0 ].items[ 0 ].counts.replies ).toBe( 4 );
+		} );
+
+		it( 'invalidates the thread query when the cache was evicted between onMutate and onSuccess', async () => {
+			const client = new QueryClient( { defaultOptions: { mutations: { retry: false } } } );
+			seedThreadWithParent( client );
+
+			nock( BASE )
+				.post( `/wpcom/v2/reader/atmosphere/connections/${ connectionId }/posts` )
+				.delay( 30 )
+				.reply( 200, { post: { uri: 'at://new', cid: 'newcid', rkey: 'abc' } } );
+
+			const { result } = renderHook( () => useMutation( createPostMutation( client ) ), {
+				wrapper: makeWrapper( client ),
+			} );
+
+			const invalidateSpy = jest.spyOn( client, 'invalidateQueries' );
+
+			let promise: Promise< unknown > = Promise.resolve();
+			await act( async () => {
+				promise = result.current.mutateAsync( {
+					connectionId,
+					text: 'reply text',
+					reply: { root, parent },
+				} );
+				await Promise.resolve();
+			} );
+
+			// Evict the thread cache while the request is in flight, simulating
+			// a route change / gc / removeQueries between onMutate and onSuccess.
+			client.removeQueries( { queryKey: readerAtmosphereKeys.thread( root.uri ) } );
+
+			await promise;
+
+			// onSuccess should have asked the cache to invalidate the thread key
+			// so the user's reply is fetched fresh next time the thread loads.
+			expect(
+				invalidateSpy.mock.calls.some( ( [ filters ] ) => {
+					const queryKey = ( filters as { queryKey?: readonly unknown[] } )?.queryKey;
+					return (
+						Array.isArray( queryKey ) &&
+						JSON.stringify( queryKey ) === JSON.stringify( readerAtmosphereKeys.thread( root.uri ) )
+					);
+				} )
+			).toBe( true );
+		} );
+
+		it( 'invalidates the thread query when the placeholder is no longer in the tree on success', async () => {
+			const client = new QueryClient( { defaultOptions: { mutations: { retry: false } } } );
+			seedThreadWithParent( client );
+
+			nock( BASE )
+				.post( `/wpcom/v2/reader/atmosphere/connections/${ connectionId }/posts` )
+				.delay( 30 )
+				.reply( 200, { post: { uri: 'at://new', cid: 'newcid', rkey: 'abc' } } );
+
+			const { result } = renderHook( () => useMutation( createPostMutation( client ) ), {
+				wrapper: makeWrapper( client ),
+			} );
+
+			const invalidateSpy = jest.spyOn( client, 'invalidateQueries' );
+
+			let promise: Promise< unknown > = Promise.resolve();
+			await act( async () => {
+				promise = result.current.mutateAsync( {
+					connectionId,
+					text: 'reply text',
+					reply: { root, parent },
+				} );
+				await Promise.resolve();
+			} );
+
+			// Simulate a concurrent refetch that drops the placeholder branch
+			// while the request is still in flight: re-seed the thread cache
+			// without the optimistic placeholder.
+			seedThreadWithParent( client );
+
+			await promise;
+
+			expect(
+				invalidateSpy.mock.calls.some( ( [ filters ] ) => {
+					const queryKey = ( filters as { queryKey?: readonly unknown[] } )?.queryKey;
+					return (
+						Array.isArray( queryKey ) &&
+						JSON.stringify( queryKey ) === JSON.stringify( readerAtmosphereKeys.thread( root.uri ) )
+					);
+				} )
+			).toBe( true );
 		} );
 	} );
 
