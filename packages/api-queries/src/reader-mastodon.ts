@@ -328,7 +328,7 @@ export function useMastodonTagFeedInfiniteQuery(
 }
 
 // ---------------------------------------------------------------------------
-// Optimistic favourite/unfavourite + boost/unboost + post-cache infrastructure
+// Optimistic favorite/unfavorite + boost/unboost + post-cache infrastructure
 // (private to this file)
 // ---------------------------------------------------------------------------
 
@@ -466,7 +466,7 @@ function patchMastodonQueryData(
 // `connections` and `connection` keys don't hold posts so they're silently
 // no-op walked. Status IDs are instance-local — same numeric id on a
 // different connection is a different post — so the patch must be
-// connection-scoped or favourites/boosts on connection A leak into B's caches.
+// connection-scoped or favorites/boosts on connection A leak into B's caches.
 function isQueryKeyForConnection( key: unknown, connectionId: number ): boolean {
 	return Array.isArray( key ) && key[ 3 ] === connectionId;
 }
