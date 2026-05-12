@@ -20,6 +20,7 @@ import {
 	getMastodonTagFeed,
 	getMastodonThread,
 	getMastodonTimeline,
+	mapNotificationsFilter,
 	readerMastodonKeys,
 	uploadMastodonMedia,
 } from '@automattic/api-core';
@@ -64,6 +65,7 @@ import type {
 	MastodonThreadNode,
 	MastodonThreadResponse,
 	MastodonTimelinePage,
+	NotificationsFilter,
 } from '@automattic/api-core';
 
 export const mastodonConnectionsQueryOptions = () =>
@@ -202,7 +204,14 @@ export function useMastodonTimelineInfiniteQuery( connectionId: number ) {
 	return useInfiniteQuery( mastodonTimelineInfiniteQuery( connectionId ) );
 }
 
-export const mastodonNotificationsInfiniteQuery = ( connectionId: number ) =>
+export interface UseMastodonNotificationsOptions {
+	filter?: NotificationsFilter;
+}
+
+export const mastodonNotificationsInfiniteQuery = (
+	connectionId: number,
+	filter: NotificationsFilter = 'all'
+) =>
 	infiniteQueryOptions<
 		MastodonNotificationsPage,
 		MastodonError,
@@ -210,8 +219,13 @@ export const mastodonNotificationsInfiniteQuery = ( connectionId: number ) =>
 		QueryKey,
 		string | undefined
 	>( {
-		queryKey: readerMastodonKeys.notifications( connectionId ),
-		queryFn: ( { pageParam } ) => getMastodonNotifications( { connectionId, cursor: pageParam } ),
+		queryKey: readerMastodonKeys.notifications( connectionId, filter ),
+		queryFn: ( { pageParam } ) =>
+			getMastodonNotifications( {
+				connectionId,
+				cursor: pageParam,
+				types: mapNotificationsFilter( filter ),
+			} ),
 		initialPageParam: undefined,
 		getNextPageParam: ( lastPage ) => lastPage.next_cursor ?? undefined,
 		enabled: connectionId > 0,
@@ -235,8 +249,12 @@ export const mastodonNotificationsInfiniteQuery = ( connectionId: number ) =>
 		},
 	} );
 
-export function useMastodonNotificationsInfiniteQuery( connectionId: number ) {
-	return useInfiniteQuery( mastodonNotificationsInfiniteQuery( connectionId ) );
+export function useMastodonNotificationsInfiniteQuery(
+	connectionId: number,
+	options: UseMastodonNotificationsOptions = {}
+) {
+	const { filter = 'all' } = options;
+	return useInfiniteQuery( mastodonNotificationsInfiniteQuery( connectionId, filter ) );
 }
 
 export const mastodonThreadQueryOptions = ( connectionId: number, statusId: string ) =>
