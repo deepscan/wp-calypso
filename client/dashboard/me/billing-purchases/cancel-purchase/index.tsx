@@ -1360,6 +1360,18 @@ function CancelPurchaseInner() {
 			return false;
 		}
 
+		// Under the split flag, if intent=cancel but auto-renew is already off
+		// (e.g. page refresh after cancel-autorenew mutation), redirect to
+		// Purchase Settings instead of re-showing the confirmation screen.
+		// Bypass when surveyShown is true — the post-mutation survey should
+		// still render within the same session.
+		const isAlreadyCancelledForSplitFlag =
+			isSplitCancelRemoveEnabled && intent === 'cancel' && ! purchase.is_auto_renew_enabled;
+
+		if ( isAlreadyCancelledForSplitFlag && ! state.surveyShown ) {
+			return false;
+		}
+
 		if ( ! purchase.is_cancelable && state.surveyShown ) {
 			return true;
 		}
@@ -1404,7 +1416,14 @@ function CancelPurchaseInner() {
 		}
 
 		return true;
-	}, [ createErrorNotice, isDataLoading, purchase, state.surveyShown ] );
+	}, [
+		createErrorNotice,
+		intent,
+		isDataLoading,
+		isSplitCancelRemoveEnabled,
+		purchase,
+		state.surveyShown,
+	] );
 
 	const didRunEffect = useRef< boolean >( false );
 
