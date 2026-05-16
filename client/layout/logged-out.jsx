@@ -81,6 +81,7 @@ const loadSupportArticleDialog = () =>
 	);
 
 const HELP_CENTER_FAB_SECTIONS = [
+	'accept-invite',
 	'patterns',
 	'performance-profiler',
 	'plugins',
@@ -88,6 +89,9 @@ const HELP_CENTER_FAB_SECTIONS = [
 	'theme',
 	'themes',
 ];
+
+// Fallback when section name is unreliable — e.g. /me/account/closed activates as 'me'.
+const HELP_CENTER_FAB_ROUTES = [ '/me/account/closed' ];
 
 const LayoutLoggedOut = ( {
 	isAkismet,
@@ -169,7 +173,8 @@ const LayoutLoggedOut = ( {
 	const showHelpCenterFab =
 		! isLoggedIn &&
 		isEnabled( 'help-center/logged-out-fab' ) &&
-		HELP_CENTER_FAB_SECTIONS.includes( sectionName ) &&
+		( HELP_CENTER_FAB_SECTIONS.includes( sectionName ) ||
+			HELP_CENTER_FAB_ROUTES.includes( currentRoute ) ) &&
 		userAllowedToHelpCenter;
 
 	const loadHelpCenter =
