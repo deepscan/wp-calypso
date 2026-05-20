@@ -213,14 +213,14 @@ describe( '<SitePerformanceBackend>', () => {
 		expect( screen.getByText( /api\.stripe\.com/ ) ).toBeVisible();
 	} );
 
-	test( 'shows a status notice with the average response time', async () => {
+	test( 'shows an intent-based status notice when data is present', async () => {
 		mockSite( businessSite( true ) );
-		mockApmAggregate();
+		mockApmAggregate( aggregateFixture() );
 
 		render( <SitePerformanceBackend siteSlug={ siteSlug } /> );
 
-		// The notice variant depends on seeded mock data, but one of these three
-		// titles must always appear and must include the formatted avg duration.
+		// With real data, the notice variant depends on the avg response time,
+		// but one of these three titles must always appear with the formatted avg.
 		expect(
 			await screen.findByText(
 				/(Healthy backend|Backend needs improvement|Backend is slow) — avg /
@@ -228,9 +228,39 @@ describe( '<SitePerformanceBackend>', () => {
 		).toBeVisible();
 	} );
 
-	test( 'toggling Avg/Max on Slowest requests updates the description', async () => {
+	test( 'shows the Capturing notice when APM is on but no data has come in yet', async () => {
 		mockSite( businessSite( true ) );
 		mockApmAggregate();
+
+		render( <SitePerformanceBackend siteSlug={ siteSlug } /> );
+
+		expect( await screen.findByText( /Performance data is being collected/ ) ).toBeVisible();
+		expect(
+			screen.queryByText( /(Healthy backend|Backend needs improvement|Backend is slow) — avg / )
+		).not.toBeInTheDocument();
+	} );
+
+	test( 'omits the status notice when APM is off and no data has come in yet', async () => {
+		// The subtitle already says "Capturing is off..." so we skip the
+		// redundant notice in this state.
+		mockSite( businessSite( false ) );
+		mockApmAggregate();
+
+		render( <SitePerformanceBackend siteSlug={ siteSlug } /> );
+
+		// Wait for the page to render before asserting absence.
+		await screen.findByRole( 'heading', { name: 'Response time breakdown' } );
+
+		expect( screen.queryByText( /Turn capturing on to start collecting/ ) ).not.toBeInTheDocument();
+		expect( screen.queryByText( /Performance data is being collected/ ) ).not.toBeInTheDocument();
+		expect(
+			screen.queryByText( /(Healthy backend|Backend needs improvement|Backend is slow) — avg / )
+		).not.toBeInTheDocument();
+	} );
+
+	test( 'toggling Avg/Max on Slowest requests updates the description', async () => {
+		mockSite( businessSite( true ) );
+		mockApmAggregate( aggregateFixture() );
 
 		render( <SitePerformanceBackend siteSlug={ siteSlug } /> );
 
