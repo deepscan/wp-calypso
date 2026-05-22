@@ -7,6 +7,7 @@ import {
 } from '@automattic/calypso-products';
 import { SummaryButton } from '@automattic/components';
 import { HelpCenter } from '@automattic/data-stores';
+import { useCanConnectToZendeskMessaging } from '@automattic/zendesk-client';
 import { Button } from '@wordpress/components';
 import { useDispatch as useDataStoreDispatch } from '@wordpress/data';
 import {
@@ -189,7 +190,9 @@ export default function SolutionsCardsUpsellStep( {
 	const [ busyButton, setBusyButton ] = useState( '' );
 	const [ showDowngradeStep, setShowDowngradeStep ] = useState( false );
 	const solutions = getSolutionsForReason( cancellationReason );
-	const { setNewMessagingChat, setOpenOdieWithContext } = useDataStoreDispatch( HELP_CENTER_STORE );
+	const { setNewMessagingChat, setNavigateToRoute, setShowHelpCenter, setOpenOdieWithContext } =
+		useDataStoreDispatch( HELP_CENTER_STORE );
+	const { data: canConnectToZendeskMessaging } = useCanConnectToZendeskMessaging();
 
 	const showSwitchToMonthly = isAnnualOrLongerPlan( purchase.productSlug );
 	const showSwitchToYearly =
@@ -249,6 +252,9 @@ export default function SolutionsCardsUpsellStep( {
 				setShowDowngradeStep( true );
 			}
 		},
+		canConnectToZendeskMessaging: !! canConnectToZendeskMessaging,
+		setNavigateToRoute,
+		setShowHelpCenter,
 		setNewMessagingChat,
 		setOpenOdieWithContext,
 	};

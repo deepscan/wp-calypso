@@ -1,5 +1,7 @@
 import { PersonalPlans, SubscriptionBillPeriod } from '@automattic/api-core';
 import { localizeUrl } from '@automattic/i18n-utils';
+// eslint-disable-next-line no-restricted-imports -- Zendesk eligibility gate for speak-with-support intervention
+import { useCanConnectToZendeskMessaging } from '@automattic/zendesk-client';
 import {
 	Button,
 	Icon,
@@ -251,6 +253,7 @@ export default function SolutionsCardsUpsellStep( {
 	const [ showDowngradeStep, setShowDowngradeStep ] = React.useState( false );
 	const solutions = getSolutionsForReason( cancellationReason );
 	const { setNewMessagingChat, setOpenOdieWithContext } = useHelpCenter();
+	const { data: canConnectToZendeskMessaging } = useCanConnectToZendeskMessaging();
 
 	const showSwitchToMonthly = isAnnualOrLongerPlan( purchase );
 
@@ -340,11 +343,19 @@ export default function SolutionsCardsUpsellStep( {
 				const initialMessage =
 					"User is contacting us from pre-cancellation form. Cancellation reason they've given: " +
 					cancellationReason;
-				setNewMessagingChat( {
-					initialMessage,
-					section: 'pre-cancellation-upsell',
-				} );
-				closeDialog?.();
+				if ( canConnectToZendeskMessaging ) {
+					setNewMessagingChat( {
+						initialMessage,
+						siteUrl: purchase.site_slug,
+						siteId: String( purchase.blog_id ),
+					} );
+				} else {
+					setOpenOdieWithContext( {
+						initialMessage,
+						siteUrl: purchase.site_slug,
+						siteId: String( purchase.blog_id ),
+					} );
+				}
 				break;
 			}
 			case 'built-by':
