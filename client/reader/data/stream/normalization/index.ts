@@ -2,9 +2,11 @@ import {
 	createStreamDataFromCards,
 	createStreamDataFromPosts,
 	createStreamDataFromSites,
-} from 'calypso/state/reader/streams/normalize';
-import type { PostKey } from './use-stream-posts';
+} from './helpers';
+import type { StreamItem } from '../types';
 import type { ReadStreamResponse } from '@automattic/api-core';
+
+export * from './helpers';
 
 /**
  * Picks the field on each item that should be used as the stream's
@@ -22,7 +24,7 @@ export function getStreamDateProperty( streamType: string ): string {
 }
 
 export interface NormalizedStreamPage {
-	streamItems: PostKey[];
+	streamItems: StreamItem[];
 	streamPosts: Array< Record< string, unknown > >;
 }
 
