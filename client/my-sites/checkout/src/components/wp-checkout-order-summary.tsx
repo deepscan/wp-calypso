@@ -56,6 +56,7 @@ import CheckoutPayButtonFooter from './checkout-pay-button-footer';
 import { CheckoutSummaryRefundWindows } from './checkout-summary-refund-windows';
 import { ProductsAndCostOverridesList } from './cost-overrides-list';
 import type { ResponseCart, ResponseCartProduct } from '@automattic/shopping-cart';
+import type { LineItemType } from '@automattic/wpcom-checkout';
 
 // This will make converting to TS less noisy. The order of components can be reorganized later
 /* eslint-disable @typescript-eslint/no-use-before-define */
@@ -217,7 +218,7 @@ function CheckoutSummaryPriceList() {
 							key={ 'checkout-summary-line-item-' + taxLineItem.id }
 							className="wp-checkout-order-summary__line-item"
 						>
-							<span>{ taxLineItem.label }</span>
+							<CheckoutSummaryLineItemLabel lineItem={ taxLineItem } />
 							<span>{ taxLineItem.formattedAmount }</span>
 						</CheckoutSummaryLineItem>
 					) ) }
@@ -255,6 +256,23 @@ function CheckoutSummaryPriceList() {
 				) }
 			</CheckoutSummaryAmountWrapper>
 		</>
+	);
+}
+
+function CheckoutSummaryLineItemLabel( { lineItem }: { lineItem: LineItemType } ) {
+	if ( ! lineItem.labelSuffix ) {
+		return <span>{ lineItem.label }</span>;
+	}
+
+	const labelSuffixWithParentheses = ` (${ lineItem.labelSuffix })`;
+	const label = lineItem.label.endsWith( labelSuffixWithParentheses )
+		? lineItem.label.slice( 0, -labelSuffixWithParentheses.length )
+		: lineItem.label;
+
+	return (
+		<span>
+			{ label } (<em>{ lineItem.labelSuffix }</em>)
+		</span>
 	);
 }
 
