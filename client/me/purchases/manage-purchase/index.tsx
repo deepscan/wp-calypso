@@ -99,6 +99,7 @@ import {
 	isPaidWithCredits,
 	canAutoRenewBeTurnedOff,
 	isExpired,
+	isInExpirationGracePeriod,
 	isOneTimePurchase,
 	isPartnerPurchase,
 	isRenewable,
@@ -588,13 +589,46 @@ class ManagePurchase extends Component<
 		return `/plans/${ siteSlug }`;
 	}
 
+	shouldRenderDowngradeOption(): boolean {
+		const { purchase } = this.props;
+		if ( ! config.isEnabled( 'plans/expired-downgrade' ) ) {
+			return false;
+		}
+		if ( ! purchase || ! isPlan( purchase ) ) {
+			return false;
+		}
+		if ( ! isInExpirationGracePeriod( purchase ) ) {
+			return false;
+		}
+		return true;
+	}
+
+	renderChangePlanNavItem() {
+		const { siteSlug, translate } = this.props;
+		if ( ! this.shouldRenderDowngradeOption() ) {
+			return null;
+		}
+		return (
+			<CompactCard tagName="a" displayAsLink href={ `/plans/${ siteSlug }` }>
+				<Icon icon={ column } className="card__icon" />
+				{ translate( 'Change plan' ) }
+			</CompactCard>
+		);
+	}
+
 	renderUpgradeNavItem() {
 		const { purchase, translate } = this.props;
+		if ( this.shouldRenderDowngradeOption() ) {
+			return null;
+		}
 		if ( ! purchase ) {
 			return null;
 		}
-
-		if ( isPartnerPurchase( purchase ) || isA4ABillingDragonPurchase( purchase ) ) {
+		if (
+			isJetpackHoldingSitePurchase( purchase ) ||
+			isPartnerPurchase( purchase ) ||
+			isA4ABillingDragonPurchase( purchase )
+		) {
 			return null;
 		}
 
@@ -1531,6 +1565,7 @@ class ManagePurchase extends Component<
 				) }
 				{ isProductOwner && ! purchase.isLocked && (
 					<>
+						{ this.renderChangePlanNavItem() }
 						{ ! preventRenewal &&
 							! renderMonthlyRenewalOption &&
 							! isActive100YearPurchase &&
@@ -1538,10 +1573,8 @@ class ManagePurchase extends Component<
 							this.renderRenewNowNavItem() }
 						{ ! preventRenewal && renderMonthlyRenewalOption && this.renderRenewAnnuallyNavItem() }
 						{ ! preventRenewal && renderMonthlyRenewalOption && this.renderRenewMonthlyNavItem() }
-						{ /* We don't want to show the Renew/Upgrade nav item for "Jetpack" temporary sites, but we DO
-						show it for "Akismet" temporary sites. (And all other types of purchases) */ }
 						{ /* TODO: Add ability to Renew Akismet subscription */ }
-						{ ! isJetpackHoldingSitePurchase( purchase ) && this.renderUpgradeNavItem() }
+						{ this.renderUpgradeNavItem() }
 						{ this.renderEditPaymentMethodNavItem() }
 						{ config.isEnabled( 'jetpack/crm-downloads' ) && this.renderCrmDownloadsNavItem() }
 						{ this.renderReinstall() }
