@@ -175,18 +175,37 @@ export function useDropdownFlip( {
 		}
 
 		// Read the CSS var, not `transitionDuration` — that's a comma list (visibility, height)
-		// and `parseFloat` would grab visibility, not the height value we want.
+		// and `parseFloat` would grab visibility, not the height value we want. The var is
+		// host-tunable, so honour both `s` and `ms` units rather than assuming seconds.
 		const morphMs = () => {
-			const raw = getComputedStyle( el ).getPropertyValue( '--x-dropdown-2026-panel-duration' );
-			return parseFloat( raw ) * 1000 || 280;
+			const raw = getComputedStyle( el )
+				.getPropertyValue( '--x-dropdown-2026-panel-duration' )
+				.trim();
+			const value = parseFloat( raw );
+			if ( ! value ) {
+				return 280;
+			}
+			return /ms$/.test( raw ) ? value : value * 1000;
 		};
 
 		// Snap any in-flight morph back to `auto` before we measure, so reads are clean.
 		releaseRef.current?.();
 
-		// Closed → open: let CSS grow the panel; flag the unroll so items wait for it.
+		// Closed → open: unroll the white surface from the nav edge, and flag the open so items wait for it.
 		if ( prev === null && next !== null ) {
 			el.classList.add( 'is-dropdown-first-open' );
+			// Drive the `::after` scaleY here (not pure CSS): the panel is `visibility: hidden` at
+			// rest, so the open commit has no rendered `scaleY(0)` frame to ease from. Pin 0 with no
+			// transition, force a reflow, then ease to 1 — the same trick the height morph uses below.
+			// Reduced motion is handled in CSS (the `::after` transform is reset there), so no guard here.
+			el.style.setProperty( '--x-dropdown-2026-unroll-duration', '0s' );
+			el.style.setProperty( '--x-dropdown-2026-unroll', '0' );
+			void el.offsetHeight;
+			el.style.setProperty(
+				'--x-dropdown-2026-unroll-duration',
+				'var( --x-dropdown-2026-panel-duration )'
+			);
+			el.style.setProperty( '--x-dropdown-2026-unroll', '1' );
 			const timer = setTimeout(
 				() => el.classList.remove( 'is-dropdown-first-open' ),
 				morphMs() + 50
@@ -196,12 +215,28 @@ export function useDropdownFlip( {
 			return () => clearTimeout( timer );
 		}
 
-		// Open → closed: nothing to morph. Don't re-measure here — the panel content
-		// is already `aria-hidden` / out of flow, so `el.offsetHeight` reads 0; the
-		// cached resting height (stored on open / switch) is the one to keep.
+		// Open → closed: hold the panel at its resting height while the content + surface fade
+		// out, then snap it shut — otherwise React drops the block out of flow on the same frame
+		// and the panel collapses while the content is still fading, reading as a slide-up. The
+		// cached height is the resting value (React already zeroed `el.offsetHeight`).
 		if ( prev !== null && next === null ) {
 			el.classList.remove( 'is-dropdown-first-open' );
-			return;
+			const node = el;
+			const held = heightByNameRef.current[ prev ];
+			if ( held === undefined ) {
+				return;
+			}
+			node.style.overflow = 'hidden';
+			node.style.height = `${ held }px`;
+			const release = () => {
+				node.style.height = '';
+				node.style.overflow = '';
+			};
+			const timer = setTimeout( release, morphMs() + 50 );
+			return () => {
+				clearTimeout( timer );
+				release();
+			};
 		}
 
 		// Open → open: FLIP the wrapper height between the two menus.
