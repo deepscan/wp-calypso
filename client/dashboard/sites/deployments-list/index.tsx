@@ -165,7 +165,6 @@ function DeploymentsList() {
 							<RouterLinkButton
 								to={ siteSettingsRepositoriesRoute.fullPath }
 								params={ { siteSlug } }
-								search={ { back_to: 'site-deployments' } }
 								variant="secondary"
 								__next40pxDefaultSize
 							>
