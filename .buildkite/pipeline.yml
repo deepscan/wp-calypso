@@ -60,3 +60,14 @@ steps:
     command: .buildkite/commands/build-desktop-linux.sh
     artifact_paths:
       - desktop/release/*
+
+  - label: ":windows: Build desktop (windows store, unsigned)"
+    branches: ainfra-*
+    notify:
+      - github_commit_status:
+          context: Desktop / Build (windows store, unsigned)
+    agents:
+      queue: windows
+    command: powershell -NoProfile -ExecutionPolicy Bypass -File .buildkite/commands/build-desktop-windows.ps1
+    artifact_paths:
+      - desktop/release/*.appx
