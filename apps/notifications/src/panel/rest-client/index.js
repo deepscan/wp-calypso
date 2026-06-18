@@ -3,6 +3,7 @@ import repliesCache from '../comment-replies-cache';
 import { store } from '../state';
 import actions from '../state/actions';
 import getAllNotes from '../state/selectors/get-all-notes';
+import getUnreadNoteIds from '../state/selectors/get-unread-note-ids';
 import { fetchNote, listNotes, sendLastSeenTime, subscribeToNoteStream } from './wpcom';
 
 const debug = debugFactory( 'notifications:rest-client' );
@@ -34,6 +35,9 @@ export function Client() {
 	this.filteredRequestLimit = settings.initial_limit;
 	this.filteredHasMore = false;
 	this.gettingFilteredNotes = false;
+	// Bumped on every setFilter so an in-flight fetch whose filter was reset
+	// (tab switched away and back) can discard its now-stale response.
+	this.filterGeneration = 0;
 	this.retries = 0;
 	this.subscribeTry = 0;
 	this.subscribeTries = 3;
@@ -186,13 +190,17 @@ function getNotes( before ) {
 	this.gettingNotes = true;
 
 	const notes = getAllNotes( store.getState() );
+	// Cap older pages by this view's own loaded count (`noteList`), matching
+	// hasMoreNotes — a filtered fetch can inflate the shared store, which would
+	// otherwise shrink the request to zero while the view still has a gap.
+	const loaded = this.noteList.length || notes.length;
 
 	const parameters = {
 		fields: 'id,type,unread,body,subject,timestamp,meta,note_hash,variant',
 		// Older pages only request what's left under max_limit, so an additive
 		// page can't push the loaded count past the cap.
 		number: before
-			? Math.min( settings.increment_limit, settings.max_limit - notes.length )
+			? Math.min( settings.increment_limit, settings.max_limit - loaded )
 			: this.noteRequestLimit,
 		locale: this.locale,
 	};
@@ -238,11 +246,11 @@ function getNotes( before ) {
 		}
 
 		if ( before ) {
-			// Also stop when an older page adds no new ids — e.g. an inclusive
-			// `before` echoes back only the anchor note, or capping near max_limit
-			// left room for just that anchor. Such a page isn't "short", so without
-			// this the catch-up loop would refetch the same notes forever.
-			const knownIds = new Set( getAllNotes( store.getState() ).map( ( n ) => n.id ) );
+			// Stop when an older page adds nothing new (an inclusive `before` can
+			// echo back just the anchor). Compare against the view's own window so
+			// a note already cached by a filtered fetch still counts as new.
+			const viewNotes = this.noteList.length ? this.noteList : getAllNotes( store.getState() );
+			const knownIds = new Set( viewNotes.map( ( n ) => n.id ) );
 			if ( ! data.notes.some( ( n ) => ! knownIds.has( n.id ) ) ) {
 				this.allNotesLoaded = true;
 			}
@@ -373,6 +381,7 @@ function setFilter( filter ) {
 	this.filter = filter ?? null;
 	this.filteredRequestLimit = settings.initial_limit;
 	this.filteredHasMore = false;
+	this.filterGeneration++;
 
 	// Reset the filtered view's id list so the tab doesn't show a stale set
 	// before the fresh fetch lands.
@@ -390,21 +399,31 @@ function setFilter( filter ) {
  * server's answer for which notes belong to the view is kept as an ordered id
  * list (`unreadNoteIds`) that the Unread tab renders looked up in the store.
  */
-function getFilteredNotes() {
+function getFilteredNotes( before ) {
 	if ( ! this.filter || this.gettingFilteredNotes ) {
 		return;
 	}
 	this.gettingFilteredNotes = true;
+	const generation = this.filterGeneration;
+
+	const unreadIds = getUnreadNoteIds( store.getState() );
 
 	const parameters = {
 		fields: 'id,type,unread,body,subject,timestamp,meta,note_hash,variant',
-		number: this.filteredRequestLimit,
+		// No `before`: re-request the authoritative top window. With it: page an
+		// older slice, capped to what's left under max_limit.
+		number: before
+			? Math.min( settings.increment_limit, settings.max_limit - unreadIds.length )
+			: this.filteredRequestLimit,
 		locale: this.locale,
 		...this.filter,
 	};
+	if ( before ) {
+		parameters.before = before;
+	}
 
 	// Only show the full-panel spinner for the first page; later pages stream in.
-	if ( this.filteredRequestLimit === settings.initial_limit ) {
+	if ( ! before && this.filteredRequestLimit === settings.initial_limit ) {
 		store.dispatch( actions.ui.loadNotes() );
 	}
 
@@ -418,19 +437,47 @@ function getFilteredNotes() {
 			return;
 		}
 
+		// The filter was reset (tab switched away and back) while this was in
+		// flight: drop the stale response and refetch the current view, since
+		// setFilter's own fetch was skipped while this request held the lock.
+		if ( generation !== this.filterGeneration ) {
+			if ( this.filter && this.isVisible ) {
+				this.getFilteredNotes();
+			}
+			return;
+		}
+
 		store.dispatch( actions.notes.addNotes( data.notes ) );
 
-		// The latest response is authoritative, so replace the id list — notes the
-		// server no longer returns (read/deleted elsewhere) drop from the view.
 		// Guard on the filter so a response landing after a tab switch is ignored,
 		// and so only `unread` writes the unread list.
 		if ( this.filter?.unread ) {
-			store.dispatch( actions.notes.setUnreadNoteIds( data.notes.map( ( note ) => note.id ) ) );
-		}
+			const pageIds = data.notes.map( ( note ) => note.id );
+			if ( before ) {
+				// Append the older page to the view's id list, de-duped — a filtered
+				// fetch can return notes an earlier page already loaded.
+				const current = getUnreadNoteIds( store.getState() );
+				const known = new Set( current );
+				const fresh = pageIds.filter( ( id ) => ! known.has( id ) );
+				const appended = current.concat( fresh );
+				store.dispatch( actions.notes.setUnreadNoteIds( appended ) );
 
-		// A full page back implies the server may have more matching notes.
-		this.filteredHasMore =
-			data.notes.length >= parameters.number && this.filteredRequestLimit < settings.max_limit;
+				// More only while the page is full, adds new ids (an inclusive
+				// `before` can echo the anchor), and the list is under the cap.
+				this.filteredHasMore =
+					fresh.length > 0 &&
+					data.notes.length >= parameters.number &&
+					appended.length < settings.max_limit;
+			} else {
+				// The top window is authoritative, so replace the id list — notes the
+				// server no longer returns (read/deleted elsewhere) drop from the view.
+				store.dispatch( actions.notes.setUnreadNoteIds( pageIds ) );
+
+				// A full page back implies the server may have more matching notes.
+				this.filteredHasMore =
+					data.notes.length >= parameters.number && this.filteredRequestLimit < settings.max_limit;
+			}
+		}
 	} );
 }
 
@@ -600,11 +647,20 @@ function loadMore() {
 		if ( this.gettingFilteredNotes || ! this.filteredHasMore ) {
 			return;
 		}
+		// Grow the refresh window so the poll keeps covering paged-in notes.
 		this.filteredRequestLimit = Math.min(
 			this.filteredRequestLimit + settings.increment_limit,
 			settings.max_limit
 		);
-		this.getFilteredNotes();
+		// Page older notes additively, anchored on the view's oldest. `before` is
+		// epoch seconds, not the ISO timestamp.
+		const unreadIds = getUnreadNoteIds( store.getState() );
+		const oldestId = unreadIds[ unreadIds.length - 1 ];
+		const oldest = oldestId && getAllNotes( store.getState() ).find( ( n ) => n.id === oldestId );
+		if ( ! oldest ) {
+			return;
+		}
+		this.getFilteredNotes( Math.floor( Date.parse( oldest.timestamp ) / 1000 ) );
 		return;
 	}
 
@@ -612,10 +668,14 @@ function loadMore() {
 		return;
 	}
 
-	// getAllNotes is newest-first, so the last entry is the oldest loaded note —
-	// the cursor for the next, older page.
-	const notes = getAllNotes( store.getState() );
-	const oldest = notes[ notes.length - 1 ];
+	// Anchor on the view's own window (`noteList`), not the shared store: a
+	// filtered fetch seeds the store with older notes, so pacing `before` off it
+	// could skip notes this view hasn't loaded. Fall back to the store only first.
+	const allNotes = getAllNotes( store.getState() );
+	const oldestId = this.noteList.length
+		? this.noteList[ this.noteList.length - 1 ].id
+		: allNotes[ allNotes.length - 1 ]?.id;
+	const oldest = allNotes.find( ( note ) => note.id === oldestId );
 	if ( ! oldest ) {
 		return;
 	}
@@ -642,8 +702,10 @@ function hasMoreNotes() {
 	if ( this.filter ) {
 		return this.filteredHasMore;
 	}
-	const notes = getAllNotes( store.getState() );
-	return ! this.allNotesLoaded && notes.length < settings.max_limit;
+	// Measure this view's own window (`noteList`), not the shared store, which a
+	// filtered fetch can inflate to the cap with notes outside this window.
+	const loaded = this.noteList.length || getAllNotes( store.getState() ).length;
+	return ! this.allNotesLoaded && loaded < settings.max_limit;
 }
 
 function setVisibility( { isShowing, isVisible } ) {

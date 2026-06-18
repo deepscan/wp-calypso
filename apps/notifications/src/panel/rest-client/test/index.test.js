@@ -150,6 +150,60 @@ describe( 'RestClient', () => {
 			client.loadMore();
 			expect( getCalls ).toHaveLength( 0 );
 		} );
+
+		// A filtered (Unread) fetch drops older notes into the shared store. The All
+		// view's load-more must pace off its own window (`noteList`), or the `before`
+		// cursor jumps past unloaded notes and paging latches half-loaded.
+		it( 'keeps paging the All view from its own window after an Unread visit', () => {
+			// All view's first window: ids 100..91 (oldest loaded = 91).
+			seedFirstWindow();
+
+			// Visit Unread; the response includes a note far older than the window.
+			client.setFilter( { unread: 1 } );
+			getCalls[ 0 ].callback( null, {
+				notes: [ makeNote( 91 ), makeNote( 5 ) ],
+				last_seen_time: 0,
+			} );
+			getCalls.length = 0;
+
+			// Back to the All view.
+			client.setFilter( null );
+			getCalls.length = 0;
+
+			// Load-more must anchor on the All window's oldest (91), not the stray
+			// unread note (5), and still consider there to be more to load.
+			expect( client.hasMoreNotes() ).toBe( true );
+			client.loadMore();
+
+			expect( getCalls ).toHaveLength( 1 );
+			expect( getCalls[ 0 ].query.before ).toBe(
+				Math.floor( Date.parse( makeNote( 91 ).timestamp ) / 1000 )
+			);
+
+			// A full older page keeps the catch-up going instead of latching.
+			getCalls[ 0 ].callback( null, { notes: fullPage( 10, 90 ), last_seen_time: 0 } );
+			expect( client.hasMoreNotes() ).toBe( true );
+		} );
+
+		// Both hasMoreNotes and the request size must measure this view's own
+		// window, not the shared store a filtered fetch can inflate to the cap —
+		// otherwise the next page is requested as number=0 and the view stalls.
+		it( 'keeps paging when a filtered fetch fills the shared store to the cap', () => {
+			seedFirstWindow(); // All window: noteList = ids 100..91 (10 notes)
+			// A filtered (Unread) visit dumps older notes into the store, filling it
+			// to max_limit, while the All view's own window stays at 10.
+			store.dispatch( actions.notes.addNotes( fullPage( 90, 90 ) ) ); // store now 100
+			expect( client.hasMoreNotes() ).toBe( true );
+
+			client.loadMore();
+			expect( getCalls ).toHaveLength( 1 );
+			// Anchored on the view's oldest (91) and sized off its own count (10 left
+			// under the cap), not 0 from the full store.
+			expect( getCalls[ 0 ].query ).toMatchObject( {
+				number: 10,
+				before: Math.floor( Date.parse( makeNote( 91 ).timestamp ) / 1000 ),
+			} );
+		} );
 	} );
 
 	describe( 'server-side (unread) filtering', () => {
@@ -178,18 +232,37 @@ describe( 'RestClient', () => {
 			expect( getCalls ).toHaveLength( 0 );
 		} );
 
-		it( 'keeps paginating with a larger window while the server has more', () => {
+		it( 'pages older unread notes in with a before cursor while the server has more', () => {
 			client.setFilter( { unread: 1 } );
-			// A full page back implies more may exist.
-			const firstPage = Array.from( { length: 10 }, ( _, i ) => makeNote( 200 + i ) );
-			getCalls[ 0 ].callback( null, { notes: firstPage, last_seen_time: 0 } );
+			// A full first window (newest-first, oldest id 200) implies more may exist.
+			getCalls[ 0 ].callback( null, { notes: fullPage( 10, 209 ), last_seen_time: 0 } );
 
 			expect( client.filteredHasMore ).toBe( true );
 
 			getCalls.length = 0;
 			client.loadMore();
 			expect( getCalls ).toHaveLength( 1 );
-			expect( getCalls[ 0 ].query ).toMatchObject( { unread: 1, number: 20 } );
+			// Load-more pages a fixed increment older than the oldest loaded note —
+			// not a re-request of the whole grown window.
+			expect( getCalls[ 0 ].query ).toMatchObject( {
+				unread: 1,
+				number: 10,
+				before: Math.floor( Date.parse( makeNote( 200 ).timestamp ) / 1000 ),
+			} );
+		} );
+
+		it( 'de-dupes an older unread page that echoes an already-loaded id', () => {
+			client.setFilter( { unread: 1 } );
+			getCalls[ 0 ].callback( null, { notes: fullPage( 10, 209 ), last_seen_time: 0 } ); // 209..200
+			getCalls.length = 0;
+
+			client.loadMore();
+			// The server's inclusive `before` echoes the anchor (200) back alongside
+			// genuinely older notes (199..191).
+			getCalls[ 0 ].callback( null, { notes: fullPage( 10, 200 ), last_seen_time: 0 } );
+
+			// Only the nine genuinely-older ids are appended; the anchor isn't duped.
+			expect( getUnreadNoteIds( store.getState() ) ).toHaveLength( 19 );
 		} );
 
 		it( 'replaces the unread id list with the response, leaving the shared store intact', () => {
@@ -232,29 +305,33 @@ describe( 'RestClient', () => {
 			expect( getAllNotes( store.getState() ).length ).toBe( before );
 		} );
 
-		it( 'accumulates unread notes across load-more pages and stops when exhausted', () => {
-			// Each fetch re-requests a growing top-N window, so every response is a
-			// superset; the id list is replaced and therefore grows.
-			const page = ( count ) => Array.from( { length: count }, ( _, i ) => makeNote( 300 + i ) );
-
+		it( 'pages older unread notes in additively and stops when exhausted', () => {
 			client.setFilter( { unread: 1 } );
-			getCalls[ 0 ].callback( null, { notes: page( 10 ), last_seen_time: 0 } );
+			getCalls[ 0 ].callback( null, { notes: fullPage( 10, 209 ), last_seen_time: 0 } ); // 209..200
 			expect( getUnreadNoteIds( store.getState() ) ).toHaveLength( 10 );
 			expect( client.filteredHasMore ).toBe( true );
 
-			// Page 2: load-more requests number=20 and the list grows to 20.
+			// Page 2: a fixed increment older than the oldest loaded note (200).
 			getCalls.length = 0;
 			client.loadMore();
-			expect( getCalls[ 0 ].query ).toMatchObject( { unread: 1, number: 20 } );
-			getCalls[ 0 ].callback( null, { notes: page( 20 ), last_seen_time: 0 } );
+			expect( getCalls[ 0 ].query ).toMatchObject( {
+				unread: 1,
+				number: 10,
+				before: Math.floor( Date.parse( makeNote( 200 ).timestamp ) / 1000 ),
+			} );
+			getCalls[ 0 ].callback( null, { notes: fullPage( 10, 199 ), last_seen_time: 0 } ); // 199..190
 			expect( getUnreadNoteIds( store.getState() ) ).toHaveLength( 20 );
 			expect( client.filteredHasMore ).toBe( true );
 
-			// Page 3: requests number=30 but the server returns fewer (25) — exhausted.
+			// Page 3: older than the new oldest (190); a short page means exhausted.
 			getCalls.length = 0;
 			client.loadMore();
-			expect( getCalls[ 0 ].query ).toMatchObject( { unread: 1, number: 30 } );
-			getCalls[ 0 ].callback( null, { notes: page( 25 ), last_seen_time: 0 } );
+			expect( getCalls[ 0 ].query ).toMatchObject( {
+				unread: 1,
+				number: 10,
+				before: Math.floor( Date.parse( makeNote( 190 ).timestamp ) / 1000 ),
+			} );
+			getCalls[ 0 ].callback( null, { notes: fullPage( 5, 189 ), last_seen_time: 0 } ); // 189..185
 			expect( getUnreadNoteIds( store.getState() ) ).toHaveLength( 25 );
 			expect( client.filteredHasMore ).toBe( false );
 
@@ -262,6 +339,53 @@ describe( 'RestClient', () => {
 			getCalls.length = 0;
 			client.loadMore();
 			expect( getCalls ).toHaveLength( 0 );
+		} );
+
+		// Reaching the cap with a full page must clear `filteredHasMore`, or the next
+		// load-more fires a zero-count request (number = max_limit - 100).
+		it( 'stops filtered paging at the cap without a zero-count request', () => {
+			client.setFilter( { unread: 1 } );
+			getCalls[ 0 ].callback( null, { notes: fullPage( 10, 209 ), last_seen_time: 0 } );
+
+			// Page in full older pages until the list reaches max_limit (100).
+			for ( let oldest = 199; oldest >= 119; oldest -= 10 ) {
+				getCalls.length = 0;
+				client.loadMore();
+				getCalls[ 0 ].callback( null, { notes: fullPage( 10, oldest ), last_seen_time: 0 } );
+			}
+
+			expect( getUnreadNoteIds( store.getState() ) ).toHaveLength( 100 );
+			expect( client.filteredHasMore ).toBe( false );
+
+			// At the cap, load-more must not fire another request.
+			getCalls.length = 0;
+			client.loadMore();
+			expect( getCalls ).toHaveLength( 0 );
+		} );
+
+		// Switching tabs away and back while a load-more is in flight resets the
+		// filter; the stale older-page response must not append to the cleared list.
+		it( 'discards a stale unread load-more response after a filter reset', () => {
+			client.setFilter( { unread: 1 } );
+			getCalls[ 0 ].callback( null, { notes: fullPage( 10, 209 ), last_seen_time: 0 } );
+
+			// Start a load-more; capture its still-pending callback.
+			getCalls.length = 0;
+			client.loadMore();
+			const staleCallback = getCalls[ 0 ].callback;
+
+			// User switches to All and back to Unread before it resolves. The fresh
+			// fetch is skipped because the in-flight request still holds the lock.
+			client.setFilter( null );
+			client.setFilter( { unread: 1 } );
+			expect( getUnreadNoteIds( store.getState() ) ).toEqual( [] );
+
+			// The stale older page lands: it must be dropped, not appended…
+			getCalls.length = 0;
+			staleCallback( null, { notes: fullPage( 10, 199 ), last_seen_time: 0 } );
+			expect( getUnreadNoteIds( store.getState() ) ).toEqual( [] );
+			// …and a fresh fetch for the re-selected filter must be kicked off.
+			expect( getCalls.find( ( call ) => call.query.unread ) ).toBeTruthy();
 		} );
 
 		// A new note arriving via the polling/push path (getNotes) while a filter is
