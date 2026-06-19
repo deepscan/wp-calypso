@@ -17,6 +17,7 @@ import type { PostHogOverrides } from '@automattic/posthog';
 export type AgencySupports = {
 	overview: boolean;
 	tiers: boolean;
+	exclusiveOffers: boolean;
 };
 
 export type AgencyClientSupports = {
