@@ -1,4 +1,4 @@
-import { __experimentalHStack as HStack, Icon } from '@wordpress/components';
+import { Icon } from '@wordpress/components';
 import { __ } from '@wordpress/i18n';
 import {
 	chartBar,
@@ -47,7 +47,8 @@ const groupTitles = [
 	__( 'Older than a month' ),
 ];
 
-const RelativeDate = ( { timestamp }: { timestamp: string } ) => {
+// Map a note's timestamp to its time-group index (0 = Today … 4 = Older than a month).
+const getTimeGroupKey = ( timestamp: string ): number => {
 	const now = new Date().setHours( 0, 0, 0, 0 );
 	const timeBoundaries = [
 		Infinity,
@@ -63,9 +64,7 @@ const RelativeDate = ( { timestamp }: { timestamp: string } ) => {
 		.map( ( val, index ) => [ val, timeBoundaries[ index + 1 ] ] );
 
 	const time = new Date( timestamp );
-	const groupKey = timeGroups.findIndex( ( [ after, before ] ) => before < time && time <= after );
-
-	return <span>{ groupTitles[ groupKey ] }</span>;
+	return timeGroups.findIndex( ( [ after, before ] ) => before < time && time <= after );
 };
 
 export function getFields(): Field< Note >[] {
@@ -112,17 +111,14 @@ export function getFields(): Field< Note >[] {
 				) : null,
 		},
 		{
-			id: 'info',
-			label: __( 'Info' ),
-			render: ( { item } ) => {
-				return (
-					<HStack spacing={ 1 }>
-						<RelativeDate timestamp={ item.timestamp } />
-						<span>•</span>
-						<span>{ item.title }</span>
-					</HStack>
-				);
-			},
+			// Group-only field for the time-section headers; never added to the
+			// view's `fields`, so it only renders as a header. `enableSorting: false`
+			// keeps notes in their newest-first arrival order rather than sorting by
+			// this label, which would order the groups alphabetically.
+			id: 'timeGroup',
+			label: __( 'Date' ),
+			enableSorting: false,
+			getValue: ( { item } ) => groupTitles[ getTimeGroupKey( item.timestamp ) ],
 		},
 	];
 }

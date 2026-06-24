@@ -102,10 +102,13 @@ const NoteList = ( { filterName, selectedNoteId, setSelectedNoteId }: NoteListPr
 		titleField: 'title',
 		descriptionField: 'description',
 		mediaField: 'icon',
-		fields: [ 'info' ],
+		fields: [],
 		page: 1,
 		infiniteScrollEnabled: true,
 		startPosition: 1,
+		// Group notes into time sections ("Today", "Yesterday", …). `direction` is
+		// required by the type but inert, since `timeGroup` opts out of sorting.
+		groupBy: { field: 'timeGroup', direction: 'asc', showLabel: false },
 	} );
 
 	const view = { ...initialView, perPage: NOTES_PER_PAGE };
