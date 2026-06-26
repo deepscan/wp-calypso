@@ -1,38 +1,38 @@
 import { __ } from '@wordpress/i18n';
-import { removeBug } from '@wordpress/icons';
+import { trash } from '@wordpress/icons';
 import PropTypes from 'prop-types';
 import { useState } from 'react';
 import { connect } from 'react-redux';
-import { spamNote } from '../../panel/state/notes/thunks';
+import { trashNote } from '../../panel/state/notes/thunks';
 import ActionButton from './action-button';
 
 // eslint-disable-next-line no-shadow
-const SpamButton = ( { note, spamNote, goBack } ) => {
+const TrashButton = ( { note, trashNote, goBack } ) => {
 	const [ isBusy, setIsBusy ] = useState( false );
 
-	const handleSpam = async () => {
+	const handleTrash = async () => {
 		setIsBusy( true );
-		await spamNote( note, true );
+		await trashNote( note, true );
 		goBack();
 	};
 
 	return (
 		<ActionButton
-			icon={ removeBug }
+			icon={ trash }
 			isActive={ false }
 			isDestructive
 			isBusy={ isBusy }
-			hotkey="s"
-			onToggle={ handleSpam }
-			text={ __( 'Spam' ) }
-			title={ __( 'Mark comment as spam' ) }
+			hotkey="t"
+			onToggle={ handleTrash }
+			text={ __( 'Trash' ) }
+			title={ __( 'Trash comment' ) }
 		/>
 	);
 };
 
-SpamButton.propTypes = {
+TrashButton.propTypes = {
 	note: PropTypes.object.isRequired,
 	goBack: PropTypes.func.isRequired,
 };
 
-export default connect( null, { spamNote } )( SpamButton );
+export default connect( null, { trashNote } )( TrashButton );
