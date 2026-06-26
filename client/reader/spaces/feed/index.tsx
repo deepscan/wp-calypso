@@ -1,3 +1,5 @@
+import clsx from 'clsx';
+import { useTranslate } from 'i18n-calypso';
 import { useCallback, useMemo, useState } from 'react';
 import { useSpace } from 'calypso/reader/data/spaces';
 import { useInfiniteStream } from 'calypso/reader/data/stream';
@@ -9,7 +11,13 @@ import {
 	SpaceFeedLoading,
 	SpaceFeedLoadingMore,
 } from './components/states';
-import { DEFAULT_SPACE_FEED_LAYOUT, getLayout } from './layouts/registry';
+import {
+	DEFAULT_SPACE_FEED_LAYOUT,
+	getLayout,
+	getLayoutInlineLoadMore,
+	getLayoutPageSize,
+	getLayoutSkeleton,
+} from './layouts/registry';
 import type { ReadStreamPost, ReadStreamResponse, SpaceFeedLayout } from '@automattic/api-core';
 
 import './style.scss';
@@ -66,6 +74,7 @@ export function SpaceFeed( { spaceId, layoutView, variant = 'feed' }: Props ) {
 	const isLegacy = layout === 'legacy';
 	const stream = useInfiniteStream( {
 		streamKey,
+		perPage: getLayoutPageSize( layout ),
 		options: { enabled: ! isLegacy },
 	} );
 	const posts = useMemo( () => collectPosts( stream.pages ), [ stream.pages ] );
@@ -85,6 +94,15 @@ export function SpaceFeed( { spaceId, layoutView, variant = 'feed' }: Props ) {
 		);
 	}, [] );
 	const Layout = getLayout( layout );
+	const Skeleton = getLayoutSkeleton( layout );
+	// Some layouts (the gallery) render their own load-more placeholders inline, so
+	// the shell skips the foot skeleton for them while still announcing the load.
+	const inlineLoadMore = getLayoutInlineLoadMore( layout );
+	const translate = useTranslate();
+	// A page's worth of placeholder cards for the first load; a few at the foot
+	// while the next page loads.
+	const initialSkeletonCount = getLayoutPageSize( layout ) ?? 8;
+	const loadMoreSkeletonCount = 3;
 
 	// Skeleton at the foot of the list while the next page loads. Sits below the
 	// virtualized content (which fills the viewport's scroll height) so it shows
@@ -110,7 +128,15 @@ export function SpaceFeed( { spaceId, layoutView, variant = 'feed' }: Props ) {
 		// The feed is driven by the posts stream, which loads in parallel with the
 		// space detail — it never waits on the detail to show posts.
 		if ( stream.isLoading ) {
-			return <SpaceFeedLoading />;
+			if ( ! Skeleton ) {
+				return <SpaceFeedLoading />;
+			}
+			return (
+				<div role="status" aria-busy="true">
+					<span className="screen-reader-text">{ translate( 'Loading the feed…' ) }</span>
+					<Skeleton count={ initialSkeletonCount } />
+				</div>
+			);
 		}
 		if ( stream.error ) {
 			// A stream failure can also stem from a stale/broken detail, so retry both.
@@ -134,19 +160,27 @@ export function SpaceFeed( { spaceId, layoutView, variant = 'feed' }: Props ) {
 				hasMore={ stream.hasNextPage }
 				isLoadingMore={ stream.isFetchingNextPage }
 				loadMore={ stream.fetchNextPage }
-				restoreKey={ `${ spaceId }:${ layout }` }
+				restoreKey={ `${ spaceId }:${ variant }:${ layout }` }
 			/>
 		);
 	};
 
 	return (
-		<div className="space-feed">
+		<div className={ clsx( 'space-feed', space && `space-feed--${ space.layout.color }` ) }>
 			{ /* The source notice reports followed-feed failures; Discover isn't built
 			     from followed feeds, so it only applies to the posts feed. */ }
 			{ ! isDiscover && <SpaceFeedSourceNotice failedCount={ 0 } /> }
 			<div className="space-feed__viewport" ref={ setViewport }>
 				{ renderBody() }
-				{ showLoadingMore && <SpaceFeedLoadingMore /> }
+				{ showLoadingMore &&
+					( Skeleton ? (
+						<div className="space-feed__loading-more" role="status" aria-busy="true">
+							<span className="screen-reader-text">{ translate( 'Loading more posts…' ) }</span>
+							{ ! inlineLoadMore && <Skeleton count={ loadMoreSkeletonCount } /> }
+						</div>
+					) : (
+						<SpaceFeedLoadingMore />
+					) ) }
 			</div>
 			<ScrollDebugOverlay scrollElement={ scrollElement } />
 		</div>
