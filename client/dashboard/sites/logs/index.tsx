@@ -15,10 +15,13 @@ import InlineSupportLink from '../../components/inline-support-link';
 import Notice from '../../components/notice';
 import { PageHeader } from '../../components/page-header';
 import PageLayout from '../../components/page-layout';
-import TimeMismatchNotice from '../../components/time-mismatch-notice';
+import TimeMismatchNotice, {
+	useShouldShowTimeMismatchNotice,
+} from '../../components/time-mismatch-notice';
 import { hasHostingFeature, hasPlanFeature } from '../../utils/site-features';
 import HostingFeatureGatedWithCallout from '../hosting-feature-gated-with-callout';
 import SiteActivityLogsDataViews from '../logs-activity/dataviews';
+import { SitesNoticeArbiter } from '../notice-arbiter';
 import SiteLogsDataViews from './dataviews';
 import { getLogsCalloutProps } from './logs-callout';
 import { LOG_TABS } from './utils';
@@ -88,6 +91,10 @@ function SiteLogsContent( {
 	);
 
 	const siteId = site.ID;
+	const showTimeMismatchNotice = useShouldShowTimeMismatchNotice( {
+		siteTime: gmtOffset,
+		siteId,
+	} );
 
 	// Normalize any incoming ?from/&to query params to Unix seconds (canonical form)
 	useEffect( () => {
@@ -199,22 +206,26 @@ function SiteLogsContent( {
 			}
 			notices={
 				<>
+					{ /* Action feedback, not an on-load banner: rendered outside the arbiter. */ }
 					{ autoRefreshDisabledReason && (
 						<Notice variant="warning">{ autoRefreshDisabledReason }</Notice>
 					) }
-					{ site.__inaccessible_jetpack_error ? (
-						<Notice variant="warning">
-							{ __(
-								'Your site’s time zone setting is currently unavailable. Dates and times on this page are displayed in UTC instead.'
-							) }
-						</Notice>
-					) : (
-						<TimeMismatchNotice
-							settingsUrl={ settingsUrl }
-							siteTime={ gmtOffset }
-							siteId={ siteId }
-						/>
-					) }
+					<SitesNoticeArbiter>
+						{ site.__inaccessible_jetpack_error && (
+							<Notice variant="warning">
+								{ __(
+									'Your site’s time zone setting is currently unavailable. Dates and times on this page are displayed in UTC instead.'
+								) }
+							</Notice>
+						) }
+						{ showTimeMismatchNotice && (
+							<TimeMismatchNotice
+								settingsUrl={ settingsUrl }
+								siteTime={ gmtOffset }
+								siteId={ siteId }
+							/>
+						) }
+					</SitesNoticeArbiter>
 				</>
 			}
 		>

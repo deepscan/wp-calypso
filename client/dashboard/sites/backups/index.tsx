@@ -22,6 +22,7 @@ import { PageHeader } from '../../components/page-header';
 import PageLayout from '../../components/page-layout';
 import { hasHostingFeature } from '../../utils/site-features';
 import HostingFeatureGatedWithCallout from '../hosting-feature-gated-with-callout';
+import { SitesNoticeArbiter } from '../notice-arbiter';
 import { BackupDetails } from './backup-details';
 import { BackupDetailsSkeleton } from './backup-details-skeleton';
 import { BackupNotices } from './backup-notices';
@@ -197,7 +198,6 @@ export function BackupsListPage() {
 
 	const isMobileDetailsView = isSmallViewport && selectedBackup;
 	const shouldShowActions = hasBackups && ! isMobileDetailsView;
-	const shouldShowNotices = ! isMobileDetailsView;
 
 	const actions = (
 		<>
@@ -230,14 +230,18 @@ export function BackupsListPage() {
 				/>
 			}
 			notices={
-				shouldShowNotices ? (
-					<BackupNotices
-						backupState={ backupState }
-						site={ site }
-						timezoneString={ timezoneString }
-						gmtOffset={ gmtOffset }
-					/>
-				) : undefined
+				<>
+					{ /* Action feedback, not an on-load banner: rendered outside the arbiter. */ }
+					{ ! isMobileDetailsView && backupState.status !== 'idle' && (
+						<BackupNotices
+							backupState={ backupState }
+							site={ site }
+							timezoneString={ timezoneString }
+							gmtOffset={ gmtOffset }
+						/>
+					) }
+					<SitesNoticeArbiter />
+				</>
 			}
 		>
 			{ hasBackups && (
