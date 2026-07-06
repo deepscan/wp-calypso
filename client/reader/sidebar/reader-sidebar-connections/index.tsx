@@ -6,7 +6,7 @@ import {
 import page from '@automattic/calypso-router';
 import clsx from 'clsx';
 import { useTranslate } from 'i18n-calypso';
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import ExpandableSidebarMenu from 'calypso/layout/sidebar/expandable';
 import { DEFAULT_ATMOSPHERE_TAB } from 'calypso/reader/atmosphere/helper';
 import { DEFAULT_FEDIVERSE_TAB } from 'calypso/reader/fediverse/helper';
@@ -135,12 +135,6 @@ function ReaderSidebarConnections( { path }: Props ) {
 
 	const [ isOpen, setIsOpen ] = useState( () => isOnConnections );
 
-	useEffect( () => {
-		if ( isOnConnections ) {
-			setIsOpen( true );
-		}
-	}, [ isOnConnections ] );
-
 	// All three queries gated on the menu being expanded *or* on a
 	// connections route — i.e. whenever we'd actually render the rows.
 	// Otherwise the user expanding the menu manually from an unrelated
@@ -218,17 +212,7 @@ function ReaderSidebarConnections( { path }: Props ) {
 
 	const handleMainClick = () => {
 		recordHeaderClick();
-		if ( ! isOpen ) {
-			setIsOpen( true );
-		}
-		// Don't fight the user when they're already inside a specific
-		// connection's pages — clicking the header just opens the menu.
-		// When they're not on any connection, navigate to the unified
-		// landing route which decides between first-connection redirect
-		// or the chooser.
-		if ( active === null && path !== BASE_PATH ) {
-			page( BASE_PATH );
-		}
+		page( BASE_PATH );
 	};
 
 	return (
