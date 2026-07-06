@@ -25,6 +25,7 @@ import { getCurrentUser, getCurrentUserSiteCount } from 'calypso/state/current-u
 import { hasDashboardOptIn } from 'calypso/state/dashboard/selectors';
 import { getSidebarType, SidebarType } from 'calypso/state/global-sidebar/selectors';
 import { savePreference } from 'calypso/state/preferences/actions';
+import { canCurrentUser } from 'calypso/state/selectors/can-current-user';
 import getCurrentRoute from 'calypso/state/selectors/get-current-route';
 import getEditorUrl from 'calypso/state/selectors/get-editor-url';
 import getPreviousRoute from 'calypso/state/selectors/get-previous-route';
@@ -525,6 +526,8 @@ class MasterbarLoggedIn extends Component {
 			site,
 			sitePlanUrl,
 			sidebarType,
+			canUserViewStats,
+			statsAdminUrl,
 		} = this.props;
 
 		// Only display when a site is selected and is not domain-only site.
@@ -562,6 +565,14 @@ class MasterbarLoggedIn extends Component {
 					onClick: () => this.props.recordTracksEvent( 'calypso_masterbar_my_home_clicked' ),
 				} );
 			}
+		}
+
+		if ( canUserViewStats ) {
+			menuItems.push( {
+				label: translate( 'Stats' ),
+				url: statsAdminUrl,
+				onClick: () => this.props.recordTracksEvent( 'calypso_masterbar_stats_clicked' ),
+			} );
 		}
 
 		if ( ! site?.is_wpcom_staging_site ) {
@@ -1043,6 +1054,8 @@ const ConnectedMasterbarLoggedIn = connect(
 				getSiteOption( state, siteId, 'editing_toolkit_is_active' ) === false,
 			isGravatarDomain: hasGravatarDomainQueryParam( state ),
 			dashboardOptIn: hasDashboardOptIn( state ),
+			canUserViewStats: canCurrentUser( state, siteId, 'view_stats' ),
+			statsAdminUrl: getSiteAdminUrl( state, siteId, 'admin.php?page=stats' ),
 		};
 	},
 	{
