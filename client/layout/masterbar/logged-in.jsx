@@ -71,6 +71,7 @@ import HelpIcon from './masterbar-agents-manager/help-icon';
 import { HelpCenterIcon } from './masterbar-help-center/help-center-icon';
 import { MasterbarLaunchButton } from './masterbar-launch-button';
 import Notifications from './masterbar-notifications/notifications-button';
+import MasterbarStatsSparkline from './masterbar-stats-sparkline';
 
 const loadCheckout = () =>
 	import( /* webpackChunkName: "async-load-calypso-layout-masterbar-checkout" */ './checkout.tsx' );
@@ -109,6 +110,8 @@ class MasterbarLoggedIn extends Component {
 		isGlobalSidebarVisible: PropTypes.bool,
 		isGravatarDomain: PropTypes.bool,
 		dashboardOptIn: PropTypes.bool,
+		canUserViewStats: PropTypes.bool,
+		statsAdminUrl: PropTypes.string,
 		useUnifiedAgent: PropTypes.bool,
 		launchButton: PropTypes.node,
 		sitePlanUrl: PropTypes.string,
@@ -703,6 +706,33 @@ class MasterbarLoggedIn extends Component {
 		);
 	}
 
+	clickStatsSparkline = () => {
+		this.props.recordTracksEvent( 'calypso_masterbar_stats_sparkline_clicked' );
+	};
+
+	renderStatsSparkline() {
+		const { siteId, translate, domainOnlySite, canUserViewStats, statsAdminUrl } = this.props;
+
+		if ( ! siteId || domainOnlySite || ! canUserViewStats ) {
+			return null;
+		}
+
+		const label = translate( 'Views over 48 hours. Click for more Stats.' );
+
+		return (
+			<Item
+				className="masterbar__item-stats-sparkline"
+				url={ statsAdminUrl }
+				tooltip={ label }
+				ariaLabel={ label }
+				onClick={ this.clickStatsSparkline }
+				hasGlobalBorderStyle
+			>
+				<MasterbarStatsSparkline siteId={ siteId } />
+			</Item>
+		);
+	}
+
 	renderLaunchButton() {
 		const { isA4ADevSite, isUnlaunchedSite, siteId, isManageSiteOptionsEnabled, launchButton } =
 			this.props;
@@ -974,6 +1004,7 @@ class MasterbarLoggedIn extends Component {
 					{ this.renderUpdatesMenu() }
 					{ this.renderCommentsMenu() }
 					{ this.renderSiteActionMenu() }
+					{ this.renderStatsSparkline() }
 					{ this.renderLanguageSwitcher() }
 					{ this.renderLaunchButton() }
 				</div>
