@@ -1,15 +1,16 @@
 import { useTranslate } from 'i18n-calypso';
-import { useEffect, useLayoutEffect } from 'react';
+import { useEffect, useLayoutEffect, useMemo } from 'react';
 import titlecase from 'to-title-case';
-import QueryMedia from 'calypso/components/data/query-media';
 import Main from 'calypso/my-sites/stats/components/stats-main';
 import {
 	useStatsBreadcrumbTrail,
 	recordCurrentScreen,
 } from 'calypso/my-sites/stats/hooks/use-stats-navigation-history';
 import { useSelector } from 'calypso/state';
-import getMediaItem from 'calypso/state/selectors/get-media-item';
-import { getSiteStatsNormalizedData } from 'calypso/state/stats/lists/selectors';
+import {
+	getSiteStatsNormalizedData,
+	hasSiteStatsQueryFailed,
+} from 'calypso/state/stats/lists/selectors';
 import { getSelectedSiteId } from 'calypso/state/ui/selectors';
 import PageViewTracker from '../stats-page-view-tracker';
 import VideoDetailsCard from './video-details-card';
@@ -28,13 +29,6 @@ interface StatsVideoDetailProps {
 	};
 }
 
-interface VideoMediaItem {
-	title?: string;
-	date?: string;
-	/** Video duration in seconds. */
-	length?: number;
-}
-
 interface VideoStatsPost {
 	post_title?: string;
 	post_date?: string;
@@ -47,21 +41,20 @@ export default function StatsVideoDetail( { postId, period, context }: StatsVide
 	// the statsVideo response — available in both Calypso and Odyssey (the
 	// stats-app proxy forwards stats routes). Mirrors VideoSummary's default
 	// Days/Weeks query, which is always fetched first.
+	const videoInfoQuery = useMemo(
+		() => ( { postId, statType: 'views', period: 'month' } ),
+		[ postId ]
+	);
 	const videoStatsData = useSelector(
 		( state ) =>
-			getSiteStatsNormalizedData( state, siteId, 'statsVideo', {
-				postId,
-				statType: 'views',
-				period: 'month',
-			} ) as { post?: VideoStatsPost | null } | null
+			getSiteStatsNormalizedData( state, siteId, 'statsVideo', videoInfoQuery ) as {
+				post?: VideoStatsPost | null;
+			} | null
+	);
+	const hasVideoInfoFailed = useSelector( ( state ) =>
+		siteId ? hasSiteStatsQueryFailed( state, siteId, 'statsVideo', videoInfoQuery ) : false
 	);
 	const videoStatsPost = videoStatsData?.post ?? null;
-	// The media item is only needed for the video duration (retention rate);
-	// the request 404s harmlessly in Odyssey, where the stats-app proxy has no
-	// media route, and the retention card is simply omitted.
-	const media = useSelector(
-		( state ) => getMediaItem( state, siteId, postId ) as VideoMediaItem | null
-	);
 	const breadcrumbTrail = useStatsBreadcrumbTrail();
 	const statType = context.query.statType ?? null;
 
@@ -79,11 +72,11 @@ export default function StatsVideoDetail( { postId, period, context }: StatsVide
 		} );
 	}, [ context.query, period.period ] );
 
-	const videoTitle = videoStatsPost?.post_title || media?.title || null;
-	const videoDate = videoStatsPost?.post_date || media?.date || null;
-	// Loading = neither source has responded yet; once statsVideo answers, a
-	// missing post means there is genuinely no title and the card hides.
-	const isVideoInfoLoading = ! videoStatsData && ! media;
+	const videoTitle = videoStatsPost?.post_title || null;
+	const videoDate = videoStatsPost?.post_date || null;
+	// Loading until statsVideo answers (success or failure); a response
+	// without a post means there is genuinely no title and the card hides.
+	const isVideoInfoLoading = ! videoStatsData && ! hasVideoInfoFailed;
 
 	return (
 		<Main
@@ -100,7 +93,6 @@ export default function StatsVideoDetail( { postId, period, context }: StatsVide
 				path={ `/stats/${ period.period }/videodetails/:site` }
 				title={ `Stats > ${ titlecase( period.period ) } > Videodetails` }
 			/>
-			{ siteId && <QueryMedia siteId={ siteId } mediaId={ postId } /> }
 			<div className="stats stats-summary-view">
 				<div
 					id="my-stats-content"
