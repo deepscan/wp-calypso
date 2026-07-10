@@ -119,6 +119,13 @@ $font-sf-pro-display: "SF Pro Display", $sans;
 			*:has(> h1) {
 				min-width: 0;
 			}
+
+			// The Jetpack logo (JetpackTitle's HStack) is a flex item with the
+			// default flex-shrink: 1, so it compresses along with a truncating
+			// title unless pinned.
+			.jetpack-logo {
+				flex-shrink: 0;
+			}
 		}
 
 		// Breadcrumb trail rendered inside the unified header on detail pages.
@@ -127,10 +134,16 @@ $font-sf-pro-display: "SF Pro Display", $sans;
 			align-items: center;
 			gap: 8px;
 			min-width: 0;
+		}
 
-			.jetpack-logo {
-				flex-shrink: 0;
-			}
+		// Each crumb (separator + label) wraps in a span that is the actual
+		// flex item; without min-width: 0 on it, the label inside can never
+		// shrink and the ellipsis rules below have no effect.
+		.stats-breadcrumbs__item {
+			display: inline-flex;
+			align-items: center;
+			gap: 8px;
+			min-width: 0;
 		}
 
 		.stats-breadcrumbs__link {
@@ -146,6 +159,7 @@ $font-sf-pro-display: "SF Pro Display", $sans;
 		.stats-breadcrumbs__current {
 			overflow: hidden;
 			text-overflow: ellipsis;
+			white-space: nowrap;
 		}
 
 		> .stats-navigation {
