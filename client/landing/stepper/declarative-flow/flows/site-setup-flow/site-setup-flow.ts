@@ -391,9 +391,6 @@ const siteSetupFlow: Flow = {
 			}
 
 			switch ( currentStep ) {
-				case 'design-setup':
-					return navigate( 'goals' );
-
 				case 'importList': {
 					if ( backToStep ) {
 						return navigate( `${ backToStep }?siteSlug=${ siteSlug }` );
@@ -453,15 +450,12 @@ const siteSetupFlow: Flow = {
 				case 'importReadyPreview':
 					return navigate( `import?siteSlug=${ siteSlug }` );
 
-				case 'import':
-					return navigate( 'goals' );
-
 				case 'verifyEmail':
 				case 'trialAcknowledge':
 					return navigate( `importerWordpress?${ urlQueryParams.toString() }` );
 
 				default:
-					return navigate( 'goals' );
+					return exitFlow( `/home/${ siteId ?? siteSlug }` );
 			}
 		};
 
@@ -471,7 +465,7 @@ const siteSetupFlow: Flow = {
 					return navigate( 'importList' );
 
 				default:
-					return navigate( 'goals' );
+					return exitFlow( `/home/${ siteId ?? siteSlug }` );
 			}
 		};
 
