@@ -802,6 +802,19 @@ $redesign-table-cell-max-width: 280px;
 			&.has-5-cols .plans-grid-next-features-grid__bottom-plan-card {
 				max-width: $redesign-table-cell-max-width * 5;
 			}
+
+			&.has-tablet-split-row {
+				.plan-features-2023-grid__table-bottom .plan-features-2023-grid__table-item {
+					max-width: none;
+				}
+			}
+
+			&.has-tablet-split-row-width-3-cols {
+				.plan-features-2023-grid__table-bottom .plan-features-2023-grid__table,
+				.plans-grid-next-features-grid__bottom-plan-card {
+					max-width: $redesign-table-cell-max-width * 3;
+				}
+			}
 		}
 	}
 
@@ -813,7 +826,7 @@ $redesign-table-cell-max-width: 280px;
 		border-top: 0;
 		box-sizing: border-box;
 		display: flex;
-		gap: 32px;
+		gap: 20px;
 		justify-content: space-between;
 		margin: 0 auto;
 		min-height: 136px;
@@ -905,6 +918,13 @@ $redesign-table-cell-max-width: 280px;
 
 		.plans-grid-next-client-logo-list__item {
 			--adjustment-unit: calc( var( --bottom-plan-card-logo-height ) / 60 );
+		}
+	}
+
+	&.is-smedium,
+	&.is-medium {
+		.plans-grid-next-features-grid__bottom-plan-card-media .plans-grid-next-client-logo-list {
+			--bottom-plan-card-logo-height: 32px;
 		}
 	}
 
