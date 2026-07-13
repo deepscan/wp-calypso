@@ -1303,6 +1303,15 @@ $redesign-table-cell-max-width: 280px;
 	&.is-medium,
 	&.is-large,
 	&.is-xlarge {
+		.plan-features-2023-grid__table-item.is-top-buttons .plan-features-2023-grid__actions-button {
+			margin-top: 0;
+		}
+
+		.plans-grid-next-features-grid__feature-group-row.is-first-feature-group-row.is-reduced-feature-group-spacing
+			> .plan-features-2023-grid__table-item {
+			padding-top: 0;
+		}
+
 		thead tr:first-child .plan-features-2023-grid__table-item.popular-plan-parent-class {
 			height: 0;
 			padding: 0;
@@ -1334,7 +1343,7 @@ $redesign-table-cell-max-width: 280px;
 					height: 24px;
 					justify-content: center;
 					left: 16px;
-					letter-spacing: 0;
+					letter-spacing: 0.25px;
 					line-height: 20px;
 					padding: 0 8px;
 					position: absolute;
@@ -1377,6 +1386,10 @@ $redesign-table-cell-max-width: 280px;
 			padding-block: 24px;
 
 			.plan-features-2023-grid__popular-badge {
+				.plans-grid__plan-pill {
+					letter-spacing: 0.25px;
+				}
+
 				&.is-premium-plan .plans-grid__plan-pill,
 				&.is-wooexpress-medium-plan .plans-grid__plan-pill {
 					background-color: var( --studio-white );
