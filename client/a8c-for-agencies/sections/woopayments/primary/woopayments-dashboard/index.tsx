@@ -1,23 +1,23 @@
 import {
+	JetpackLicenseFilter,
+	JetpackLicenseSortField,
+	JetpackLicenseSortDirection,
+} from '@automattic/api-core';
+import {
 	agencySitesWithPluginsQuery,
 	agencyWooPaymentsDataQuery,
 	jetpackAgencyLicensesQuery,
 } from '@automattic/api-queries';
 import { useDesktopBreakpoint } from '@automattic/viewport-react';
 import { useQuery } from '@tanstack/react-query';
+import { __ } from '@wordpress/i18n';
 import clsx from 'clsx';
-import { useTranslate } from 'i18n-calypso';
 import { useMemo } from 'react';
 import { LayoutWithGuidedTour as Layout } from 'calypso/a8c-for-agencies/components/layout/layout-with-guided-tour';
 import LayoutTop from 'calypso/a8c-for-agencies/components/layout/layout-with-payment-notification';
 import { PageBodyPlaceholder } from 'calypso/a8c-for-agencies/components/page-placeholder';
 import MobileSidebarNavigation from 'calypso/a8c-for-agencies/components/sidebar/mobile-sidebar-navigation';
 import MissingPaymentSettingsNotice from 'calypso/a8c-for-agencies/sections/referrals/common/missing-payment-settings-notice';
-import {
-	LicenseFilter,
-	LicenseSortField,
-	LicenseSortDirection,
-} from 'calypso/jetpack-cloud/sections/partner-portal/types';
 import LayoutBody from 'calypso/layout/hosting-dashboard/body';
 import LayoutHeader, {
 	LayoutHeaderTitle as Title,
@@ -56,20 +56,18 @@ const sortByState = ( a: SitesWithWooPaymentsState, b: SitesWithWooPaymentsState
 };
 
 const WooPaymentsDashboard = () => {
-	const translate = useTranslate();
-
 	const isDesktop = useDesktopBreakpoint();
 
-	const title = translate( 'WooPayments commissions' );
+	const title = __( 'WooPayments commissions' );
 
 	const agencyId = useSelector( getActiveAgencyId );
 
 	const { data: licenseSites, isLoading: isLoadingLicensesWithWooPayments } = useQuery( {
 		...jetpackAgencyLicensesQuery( agencyId ?? 0, {
-			filter: LicenseFilter.Attached,
+			filter: JetpackLicenseFilter.Attached,
 			search: 'woopayments',
-			sortField: LicenseSortField.IssuedAt,
-			sortDirection: LicenseSortDirection.Descending,
+			sortField: JetpackLicenseSortField.IssuedAt,
+			sortDirection: JetpackLicenseSortDirection.Descending,
 		} ),
 		enabled: !! agencyId,
 		refetchOnWindowFocus: false,
