@@ -7,7 +7,6 @@ import { useTranslate } from 'i18n-calypso';
 import { useResurrectedFreeUserEligibility } from 'calypso/lib/resurrected-users';
 import {
 	WELCOME_BACK_VARIATIONS,
-	WELCOME_BACK_VARIATION_MANUAL,
 	type WelcomeBackVariation,
 } from 'calypso/lib/resurrected-users/constants';
 
@@ -35,6 +34,7 @@ type VariationConfig = {
 
 const ONBOARDING_URL = '/setup/onboarding';
 const THEMES_SHOWCASE_URL = '/themes';
+const SITE_EDITOR_URL = '/site-editor';
 
 // Rolled-out variation: MANUAL only.
 const MANUAL_VARIATION_CONFIG: VariationConfig = {
@@ -75,6 +75,27 @@ const VARIATION_CONTENT: Partial< Record< WelcomeBackVariation, VariationConfig 
 			},
 			{
 				id: 'manual-continue',
+				getLabel: ( translate ) => translate( 'Create a new site' ),
+				href: ONBOARDING_URL,
+				variant: 'tertiary',
+			},
+		],
+	},
+	[ WELCOME_BACK_VARIATIONS.design ]: {
+		getTitle: ( translate ) => translate( 'Welcome back!' ),
+		getDescription: ( translate ) =>
+			translate(
+				"We've made it easier than ever to update your colors, fonts, and layout. A few small tweaks can make a big difference for your site."
+			),
+		ctas: [
+			{
+				id: 'design-site-editor',
+				getLabel: ( translate ) => translate( 'Refresh your site design' ),
+				href: SITE_EDITOR_URL,
+				variant: 'primary',
+			},
+			{
+				id: 'design-new',
 				getLabel: ( translate ) => translate( 'Create a new site' ),
 				href: ONBOARDING_URL,
 				variant: 'tertiary',
@@ -138,7 +159,7 @@ export const ResurrectedWelcomeModalGate = ( {
 	const variationClassName = variationName
 		? `resurrected-welcome-modal--${ variationName.replace( /_/g, '-' ) }`
 		: null;
-	const hasDarkHero = variationName === WELCOME_BACK_VARIATION_MANUAL;
+	const hasDarkHero = true;
 
 	const shouldDisplay =
 		! eligibility.isLoading &&
