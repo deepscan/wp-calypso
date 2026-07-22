@@ -692,7 +692,7 @@ function PurchaseSettingsActions( { purchase }: { purchase: Purchase } ) {
 function PurchaseFeatureItems( { features }: { features: CancellationFeature[] } ) {
 	return (
 		<VStack spacing={ 4 }>
-			<Text weight="bold">{ __( 'What you get' ) }</Text>
+			<Text weight="bold">{ __( 'Included with your purchase' ) }</Text>
 			<VStack as="ul" spacing={ 1 } className="purchase-settings__feature-list">
 				{ features.map( ( feature ) => (
 					<HStack key={ feature.feature_id } as="li" justify="flex-start" spacing={ 3 }>
@@ -1438,12 +1438,10 @@ export default function PurchaseSettings() {
 	} )();
 
 	const isCentennial = isCentennialPurchase( purchase );
-	const isSplitEnabled = useIsSplitCancelRemoveEnabled();
 	const { data: cancelFeaturesResponse } = useQuery( {
-		...purchaseCancelFeaturesQuery( purchase.ID, 'treatment' ),
-		enabled: isSplitEnabled,
+		...purchaseCancelFeaturesQuery( purchase.ID ),
 	} );
-	const features = isSplitEnabled ? cancelFeaturesResponse?.features ?? null : null;
+	const features = cancelFeaturesResponse?.features ?? null;
 	const hasExpiryInfo = ! purchase.partner_name || isA4ABillingDragonPurchase( purchase );
 
 	const isSmallViewport = useViewportMatch( 'medium', '<' );

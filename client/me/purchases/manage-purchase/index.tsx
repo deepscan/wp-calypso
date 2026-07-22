@@ -80,7 +80,6 @@ import CancelPurchaseForm from 'calypso/components/marketing-survey/cancel-purch
 import Notice from 'calypso/components/notice';
 import NoticeAction from 'calypso/components/notice/notice-action';
 import VerticalNavItem from 'calypso/components/vertical-nav/item';
-import { useIsSplitCancelRemoveEnabled } from 'calypso/dashboard/me/billing-purchases/cancel-purchase/use-is-split-cancel-remove-enabled';
 import {
 	getCancelButtonCopy,
 	getRemoveButtonCopy,
@@ -216,7 +215,6 @@ export interface ManagePurchaseProps {
 }
 
 export interface ManagePurchaseConnectedProps {
-	isSplitCancelRemoveEnabled: boolean;
 	cancellationFeatures: CancellationFeature[] | null;
 	hasCustomPrimaryDomain?: boolean | null;
 	hasLoadedDomains?: boolean;
@@ -1067,7 +1065,7 @@ class ManagePurchase extends Component<
 		}
 
 		if ( isPlan( purchase ) && plan ) {
-			return plan.getDescription();
+			return null;
 		}
 
 		if ( isThemePurchase( purchase ) && theme ) {
@@ -1160,8 +1158,7 @@ class ManagePurchase extends Component<
 	}
 
 	renderPurchaseDescription() {
-		const { purchase, site, translate, isSplitCancelRemoveEnabled, cancellationFeatures } =
-			this.props;
+		const { purchase, site, translate, cancellationFeatures } = this.props;
 
 		if ( ! purchase ) {
 			return null;
@@ -1169,23 +1166,6 @@ class ManagePurchase extends Component<
 
 		if ( isMarketplaceHoldingSitePurchase( purchase ) || isA4AHoldingSitePurchase( purchase ) ) {
 			return null;
-		}
-
-		// When the split flag is on and the API has returned features for this
-		// purchase, show the feature list instead of the description.
-		if ( isSplitCancelRemoveEnabled && cancellationFeatures && cancellationFeatures.length > 0 ) {
-			return (
-				<div className="manage-purchase__content">
-					<ul className="manage-purchase__feature-list-items">
-						{ cancellationFeatures.map( ( feature ) => (
-							<li key={ feature.feature_id } className="manage-purchase__feature-list-item">
-								<Icon icon={ check } size={ 24 } className="manage-purchase__feature-icon" />
-								<span>{ feature.title }</span>
-							</li>
-						) ) }
-					</ul>
-				</div>
-			);
 		}
 
 		const registrationAgreementUrl = getDomainRegistrationAgreementUrl( purchase );
@@ -1218,22 +1198,37 @@ class ManagePurchase extends Component<
 			'Domain transfers can take anywhere from five to seven days to complete.'
 		);
 
+		const purchaseDescription = this.getPurchaseDescription() ?? null;
+
 		return (
 			<div className="manage-purchase__content">
 				<span className="manage-purchase__description">
-					<div className="manage-purchase__content-domain-description">
-						{ this.getPurchaseDescription() }
-					</div>
-					<div className="manage-purchase__content-domain-description">
-						{ purchase.productType === 'domain_transfer' && (
-							<>
+					{ purchaseDescription && (
+						<div className="manage-purchase__content-purchase-description">
+							{ purchaseDescription }
+						</div>
+					) }
+					{ purchase.productType === 'domain_transfer' && (
+						<>
+							<div className="manage-purchase__content-domain-description">
 								{ cancelText } { domainTransferDuration }
-							</>
-						) }
-					</div>
-					<div className="manage-purchase__content-domain-description">
-						{ purchase.productType === 'domain_transfer' && supportText }
-					</div>
+							</div>
+							<div className="manage-purchase__content-domain-description">{ supportText }</div>
+						</>
+					) }
+					{ cancellationFeatures && cancellationFeatures.length > 0 && (
+						<div className="manage-purchase__content-purchase-features">
+							<strong>{ translate( 'Included with your purchase' ) }</strong>
+							<ul className="manage-purchase__feature-list-items">
+								{ cancellationFeatures.map( ( feature ) => (
+									<li key={ feature.feature_id } className="manage-purchase__feature-list-item">
+										<Icon icon={ check } size={ 24 } className="manage-purchase__feature-icon" />
+										<span>{ feature.title }</span>
+									</li>
+								) ) }
+							</ul>
+						</div>
+					) }
 				</span>
 
 				<span className="manage-purchase__settings-link">
@@ -1840,21 +1835,11 @@ function mapDispatchToProps( dispatch: CalypsoDispatch ) {
 }
 
 function ManagePurchaseWithExperiment( props: ManagePurchaseProps ) {
-	const isSplitCancelRemoveEnabled = useIsSplitCancelRemoveEnabled();
 	const { data: cancelFeaturesResponse } = useQuery( {
-		...purchaseCancelFeaturesQuery( props.purchaseId, 'treatment' ),
-		enabled: isSplitCancelRemoveEnabled,
+		...purchaseCancelFeaturesQuery( props.purchaseId ),
 	} );
-	const cancellationFeatures = isSplitCancelRemoveEnabled
-		? cancelFeaturesResponse?.features ?? null
-		: null;
-	return (
-		<ConnectedManagePurchase
-			{ ...props }
-			isSplitCancelRemoveEnabled={ isSplitCancelRemoveEnabled }
-			cancellationFeatures={ cancellationFeatures }
-		/>
-	);
+	const cancellationFeatures = cancelFeaturesResponse?.features ?? null;
+	return <ConnectedManagePurchase { ...props } cancellationFeatures={ cancellationFeatures } />;
 }
 
 export default ManagePurchaseWithExperiment;
