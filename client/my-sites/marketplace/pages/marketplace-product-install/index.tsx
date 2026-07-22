@@ -61,8 +61,12 @@ import {
 } from 'calypso/state/ui/selectors';
 import './style.scss';
 import ThemeDirectInstall from './theme-direct-install';
+import { useDelayedCondition } from './use-delayed-condition';
 import useMarketplaceAdditionalSteps from './use-marketplace-additional-steps';
 import type { TranslateResult } from 'i18n-calypso';
+
+// The state authorizing an install is handed off asynchronously, so allow for it arriving late.
+const INSTALL_HANDOFF_GRACE_PERIOD_MS = 2000;
 
 const MarketplaceProductInstall = ( {
 	pluginSlug = '',
@@ -80,7 +84,6 @@ const MarketplaceProductInstall = ( {
 	const installFlowInitiatedRef = useRef( false );
 	const [ atomicFlow, setAtomicFlow ] = useState( false );
 	const [ nonInstallablePlanError, setNonInstallablePlanError ] = useState( false );
-	const [ noDirectAccessError, setNoDirectAccessError ] = useState( false );
 	const [ userDirectInstallationAllowed, setUserDirectInstallationAllowed ] = useState( false );
 	// The signup "Get started" flow reaches this page via a full-page redirect, which drops the
 	// in-memory purchase-flow state that normally authorizes the install. When that redirect marks
@@ -161,22 +164,17 @@ const MarketplaceProductInstall = ( {
 		return () => clearTimeout( id );
 	}, [ hasAtomicFeature, isJetpackSelfHosted, nonInstallablePlanError ] );
 
-	const shouldShowNoDirectAccessError =
+	const isInstallAuthorizationMissing =
 		// 1. This is a plugin upload flow (via zip file) and we don't have a primary domain set
 		( isPluginUploadFlow && ! primaryDomain ) ||
 		// 2. This is a marketplace plugin installation but the installation process hasn't started
 		( ! isPluginUploadFlow && ! marketplaceInstallationInProgress );
 
-	// Check that the site URL and the plugin slug are the same which were selected on the plugin page
-	useEffect( () => {
-		if ( shouldShowNoDirectAccessError ) {
-			waitFor( 2 ).then( () => {
-				if ( shouldShowNoDirectAccessError ) {
-					setNoDirectAccessError( true );
-				}
-			} );
-		}
-	}, [ shouldShowNoDirectAccessError ] );
+	// Flows that carry their own authorization never render this error, so don't arm the timer.
+	const noDirectAccessError = useDelayedCondition(
+		isInstallAuthorizationMissing && ! directInstallationAllowed,
+		INSTALL_HANDOFF_GRACE_PERIOD_MS
+	);
 
 	// Upload flow startup
 	useEffect( () => {
