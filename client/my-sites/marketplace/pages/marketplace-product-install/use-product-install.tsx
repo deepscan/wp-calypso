@@ -43,6 +43,9 @@ import { useThankYouRedirect } from './use-thank-you-redirect';
 // The state authorizing an install is handed off asynchronously, so allow for it arriving late.
 const INSTALL_HANDOFF_GRACE_PERIOD_MS = 2000;
 
+// The plan's feature list is fetched asynchronously; allow for it arriving late.
+const PLAN_FEATURES_GRACE_PERIOD_MS = 2000;
+
 export type ProductInstallError =
 	| { type: 'non-installable-plan' }
 	| { type: 'no-direct-access-upload' }
@@ -59,18 +62,14 @@ export function useProductInstall( {
 } ) {
 	const isPluginUploadFlow = ! pluginSlug && ! themeSlug;
 	const [ currentStep, setCurrentStep ] = useState( 0 );
-	// Ref instead of state so the install effect can be guarded synchronously —
-	// the dispatch inside the effect notifies redux subscribers (via
-	// useSyncExternalStore) before a setState would commit, which would
-	// otherwise re-enter the effect and dispatch repeatedly.
+	// A ref, not state, so the guard commits synchronously: the dispatch inside the effect notifies
+	// subscribers before a setState would, which would otherwise re-enter and dispatch again.
 	const installFlowInitiatedRef = useRef( false );
 	const [ atomicFlow, setAtomicFlow ] = useState( false );
-	const [ nonInstallablePlanError, setNonInstallablePlanError ] = useState( false );
 	const [ userDirectInstallationAllowed, setUserDirectInstallationAllowed ] = useState( false );
-	// The signup "Get started" flow reaches this page via a full-page redirect, which drops the
-	// in-memory purchase-flow state that normally authorizes the install. When that redirect marks
-	// itself as trusted (directInstall), proceed with the install directly instead of waiting on
-	// handoff state that will never arrive (which otherwise leaves the page polling forever).
+	// The signup flow reaches this page via a full-page redirect that drops the in-memory handoff
+	// state. A trusted redirect (directInstall) authorizes the install directly, rather than
+	// waiting on handoff state that will never arrive.
 	const directInstallFromSignup = useSelector( getCurrentQueryArguments )?.directInstall != null;
 	const directInstallationAllowed = userDirectInstallationAllowed || directInstallFromSignup;
 	const translate = useTranslate();
@@ -123,8 +122,6 @@ export function useProductInstall( {
 	const isAtomic = useSelector( ( state ) =>
 		isSiteAutomatedTransfer( state, selectedSite?.ID ?? null )
 	);
-	const isJetpackSelfHosted = selectedSite && isJetpack && ! isAtomic;
-
 	const hasAtomicFeature = useSelector( ( state ) =>
 		siteHasFeature( state, selectedSite?.ID ?? null, WPCOM_FEATURES_ATOMIC )
 	);
@@ -136,15 +133,19 @@ export function useProductInstall( {
 		}
 	}, [ isWporgPluginFetched, pluginSlug, dispatch ] );
 
-	// The plan's feature list can arrive late, so give it 2s before concluding that the site
-	// can't install plugins. Any change to the conditions restarts the timer.
-	useEffect( () => {
-		if ( hasAtomicFeature || isJetpackSelfHosted || nonInstallablePlanError ) {
-			return;
-		}
-		const id = setTimeout( () => setNonInstallablePlanError( true ), 2000 );
-		return () => clearTimeout( id );
-	}, [ hasAtomicFeature, isJetpackSelfHosted, nonInstallablePlanError ] );
+	// How this site can install the product (in place, via an Atomic transfer, or not at all).
+	const installStrategy = chooseInstallStrategy( {
+		siteInstallsInPlace: !! ( isJetpack || isAtomic ),
+		siteCanTransferToAtomic: !! hasAtomicFeature,
+	} );
+
+	// Only conclude the site can't install once no strategy has been available for the grace period.
+	// Deriving from the same strategy the install uses keeps the two in agreement, and it clears if
+	// eligibility arrives late.
+	const nonInstallablePlanError = useDelayedCondition(
+		installStrategy === 'none',
+		PLAN_FEATURES_GRACE_PERIOD_MS
+	);
 
 	const isInstallAuthorizationMissing =
 		// 1. This is a plugin upload flow (via zip file) and we don't have a primary domain set
@@ -163,9 +164,7 @@ export function useProductInstall( {
 		if ( 100 !== pluginUploadProgress ) {
 			return;
 		}
-		// For smaller uploads or fast networks give
-		// the chance to Upload Plugin step to be shown
-		// before moving to next step.
+		// Let the upload step show briefly before advancing.
 		const id = setTimeout( () => setCurrentStep( 1 ), 1000 );
 		return () => clearTimeout( id );
 	}, [ pluginUploadProgress ] );
@@ -173,41 +172,40 @@ export function useProductInstall( {
 	// Installing plugin flow startup
 	useEffect( () => {
 		if (
-			( marketplaceInstallationInProgress || directInstallationAllowed ) &&
-			! isPluginUploadFlow &&
-			! installFlowInitiatedRef.current &&
-			( wporgPlugin || wpOrgTheme )
+			! ( marketplaceInstallationInProgress || directInstallationAllowed ) ||
+			isPluginUploadFlow ||
+			installFlowInitiatedRef.current ||
+			! ( wporgPlugin || wpOrgTheme )
 		) {
-			installFlowInitiatedRef.current = true;
-			// Intentionally uncancelable. The ref above blocks re-entry, so tying this to the
-			// effect's lifetime would let a dependency change drop the step advance for good
-			// rather than reschedule it — and the dispatches below change state this effect reads.
-			const triggerInstallFlow = () => {
-				waitFor( 1 ).then( () => setCurrentStep( 1 ) );
-			};
-
-			const strategy = chooseInstallStrategy( {
-				siteInstallsInPlace: !! ( isJetpack || isAtomic ),
-				siteCanTransferToAtomic: !! hasAtomicFeature,
-			} );
-
-			if ( strategy === 'in-place' ) {
-				if ( wpOrgTheme ) {
-					dispatch( installAndActivateTheme( wpOrgTheme.id, siteId ) );
-				} else {
-					dispatch( installPlugin( siteId, wporgPlugin, false ) );
-				}
-				triggerInstallFlow();
-			} else if ( strategy === 'atomic-transfer' ) {
-				if ( wpOrgTheme ) {
-					dispatch( initiateAtomicTransfer( siteId, { themeSlug, context: 'theme_install' } ) );
-				} else {
-					setAtomicFlow( true );
-					dispatch( initiateTransfer( siteId, null, pluginSlug, '', 'plugin_install' ) );
-				}
-				triggerInstallFlow();
-			}
+			return;
 		}
+
+		// The site may not be installable yet — e.g. its feature data hasn't loaded. Leave the
+		// guard unset so a later update (features arriving) can still start the install.
+		if ( installStrategy === 'none' ) {
+			return;
+		}
+
+		installFlowInitiatedRef.current = true;
+		// Intentionally uncancelable: the ref blocks re-entry, so tying this to the effect's
+		// lifetime would let a dependency change drop the step advance rather than reschedule it.
+		const triggerInstallFlow = () => {
+			waitFor( 1 ).then( () => setCurrentStep( 1 ) );
+		};
+
+		if ( installStrategy === 'in-place' ) {
+			if ( wpOrgTheme ) {
+				dispatch( installAndActivateTheme( wpOrgTheme.id, siteId ) );
+			} else {
+				dispatch( installPlugin( siteId, wporgPlugin, false ) );
+			}
+		} else if ( wpOrgTheme ) {
+			dispatch( initiateAtomicTransfer( siteId, { themeSlug, context: 'theme_install' } ) );
+		} else {
+			setAtomicFlow( true );
+			dispatch( initiateTransfer( siteId, null, pluginSlug, '', 'plugin_install' ) );
+		}
+		triggerInstallFlow();
 	}, [
 		marketplaceInstallationInProgress,
 		directInstallationAllowed,
@@ -218,9 +216,7 @@ export function useProductInstall( {
 		pluginSlug,
 		themeSlug,
 		dispatch,
-		hasAtomicFeature,
-		isAtomic,
-		isJetpack,
+		installStrategy,
 	] );
 
 	// Validate completion of atomic transfer flow
@@ -230,12 +226,13 @@ export function useProductInstall( {
 		}
 	}, [ atomicFlow, automatedTransferStatus, currentStep ] );
 
-	// Validate plugin is already installed and activate
+	// Activate once the plugin is installed and the installing step is reached. currentStep is a
+	// dependency so a plugin that appears before that step still activates when the step catches up.
 	useEffect( () => {
 		if (
 			installedPlugin &&
 			currentStep === 1 &&
-			( ! isPluginUploadFlow || ( isPluginUploadFlow && pluginUploadComplete ) )
+			( ! isPluginUploadFlow || pluginUploadComplete )
 		) {
 			dispatch(
 				activatePlugin( siteId, {
@@ -245,8 +242,7 @@ export function useProductInstall( {
 			);
 			setCurrentStep( 2 );
 		}
-		// eslint-disable-next-line react-hooks/exhaustive-deps
-	}, [ pluginUploadComplete, installedPlugin, setCurrentStep ] );
+	}, [ installedPlugin, currentStep, isPluginUploadFlow, pluginUploadComplete, dispatch, siteId ] );
 
 	useThankYouRedirect( {
 		siteId,
