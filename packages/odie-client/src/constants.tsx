@@ -285,11 +285,12 @@ export const getOdieInitialMessage = (
 	return {
 		content: `**${ sprintf(
 			/* translators: %(name)s: the user's display name */
-			__( 'Howdy %(name)s 👋', __i18n_text_domain__ ),
+			__( 'Howdy %(name)s', __i18n_text_domain__ ),
 			{
-				name: displayName || 'there',
+				/* translators: fallback used when the user's display name isn't available */
+				name: displayName || __( 'there', __i18n_text_domain__ ),
 			}
-		) }** \n\n ${ introMessage }`,
+		).trim() } 👋** \n\n ${ introMessage }`,
 		role: 'bot',
 		type: 'introduction',
 		context: getOdieInitialPromptContext( botNameSlug ),
